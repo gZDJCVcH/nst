@@ -48,7 +48,7 @@ openlist-cli upgrade           # 下载校验后原地替换
 ## 快速开始
 
 ```bash
-# 登录：交互式粘贴 token（地址 → 探活 → 校验 → 通过才落盘）
+# 登录：问地址 → 探活 → 给出令牌页面（本地会话会顺手打开浏览器）→ 粘贴 token → 校验通过才保存
 openlist-cli auth login --url http://192.168.1.10:5244
 
 # 或用账号密码换 token

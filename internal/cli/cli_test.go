@@ -443,3 +443,87 @@ func TestNormalizeOptionalValueFlags(t *testing.T) {
 		}
 	}
 }
+
+func TestTokenPageURL(t *testing.T) {
+	cases := []string{"http://nas.com:5244", "nas.com:5244/", "https://nas.com/", "https://nas.com:5244"}
+	want := "/@manage/settings/other"
+	for _, in := range cases {
+		got := tokenPageURL(in)
+		if !strings.HasSuffix(got, want) {
+			t.Errorf("tokenPageURL(%q) = %q，应以 %q 结尾", in, got, want)
+		}
+		if !strings.HasPrefix(got, "http://") && !strings.HasPrefix(got, "https://") {
+			t.Errorf("tokenPageURL(%q) = %q，缺少协议前缀", in, got)
+		}
+	}
+	if got, want2 := tokenPageURL("nas.com:5244"), "http://nas.com:5244/@manage/settings/other"; got != want2 {
+		t.Errorf("tokenPageURL = %q，期望 %q", got, want2)
+	}
+}
+
+func TestGuideTokenPagePrintsLink(t *testing.T) {
+	// SSH 会话下只打印，不真的拉浏览器
+	t.Setenv("SSH_CONNECTION", "10.0.0.1 1 10.0.0.2 22")
+
+	var out bytes.Buffer
+	app := New()
+	app.Out = &out
+	app.Err = &out
+	app.guideTokenPage("nas.com:5244", false)
+
+	text := out.String()
+	for _, want := range []string{
+		"http://nas.com:5244/@manage/settings/other",
+		"设置 → 其他",
+		"复制上面的地址",
+	} {
+		if !strings.Contains(text, want) {
+			t.Errorf("输出缺少 %q：\n%s", want, text)
+		}
+	}
+}
+
+func TestGuideTokenPageSkipsOpenWhenNoOpen(t *testing.T) {
+	t.Setenv("SSH_CONNECTION", "")
+
+	var out bytes.Buffer
+	app := New()
+	app.Out = &out
+	app.Err = &out
+	app.guideTokenPage("http://nas.com:5244", true)
+
+	text := out.String()
+	if !strings.Contains(text, "/@manage/settings/other") {
+		t.Error("即使不打开浏览器也应打印地址")
+	}
+	if strings.Contains(text, "复制上面的地址") || strings.Contains(text, "已在浏览器中打开") {
+		t.Errorf("--no-open 时不应有打开相关的提示：\n%s", text)
+	}
+}
+
+func TestGuideTokenPageSkipsWhenTokenGiven(t *testing.T) {
+	t.Setenv("SSH_CONNECTION", "")
+
+	var out bytes.Buffer
+	app := New()
+	app.Out = &out
+	app.Err = &out
+	app.flagToken = "already-have-token"
+	app.guideTokenPage("http://nas.com:5244", false)
+
+	if out.Len() != 0 {
+		t.Errorf("已通过 --token 传入时不该有任何引导输出：%q", out.String())
+	}
+}
+
+func TestCanOpenBrowserFalseInSSH(t *testing.T) {
+	t.Setenv("SSH_CONNECTION", "10.0.0.1 1 10.0.0.2 22")
+	if canOpenBrowser() {
+		t.Error("SSH 会话不应自动拉起浏览器")
+	}
+	t.Setenv("SSH_CONNECTION", "")
+	t.Setenv("SSH_TTY", "/dev/pts/0")
+	if canOpenBrowser() {
+		t.Error("存在 SSH_TTY 时也不应自动拉起浏览器")
+	}
+}

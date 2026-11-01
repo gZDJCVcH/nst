@@ -26,6 +26,7 @@ func (a *App) authCmd() *cobra.Command {
 
 func (a *App) authLoginCmd() *cobra.Command {
 	var username, password, otp string
+	var noOpen bool
 	cmd := &cobra.Command{
 		Use:   "login",
 		Short: "登录并保存令牌（交互式）",
@@ -36,18 +37,19 @@ func (a *App) authLoginCmd() *cobra.Command {
 			if cmd.Flags().Changed("password") || otp != "" {
 				return a.loginWithPassword(username, password, otp)
 			}
-			return a.loginWithToken()
+			return a.loginWithToken(noOpen)
 		},
 	}
 	cmd.Flags().StringVarP(&username, "username", "u", "admin", "仅密码模式使用，默认 admin")
 	cmd.Flags().StringVar(&password, "password", "", "给出则走账号密码模式；不带值则交互询问密码")
 	cmd.Flags().Lookup("password").NoOptDefVal = ""
 	cmd.Flags().StringVar(&otp, "otp", "", "两步验证码")
+	cmd.Flags().BoolVar(&noOpen, "no-open", false, "不自动打开浏览器（仅打印令牌页面地址）")
 	return cmd
 }
 
 // loginWithToken 交互式：问地址 → 探活 → 要 token → 校验 → 保存。
-func (a *App) loginWithToken() error {
+func (a *App) loginWithToken(noOpen bool) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err
@@ -109,7 +111,10 @@ func (a *App) loginWithToken() error {
 		break
 	}
 
-	// 2) token：校验通过才落盘，失败允许重输
+	// 2) 引导到令牌页面：OpenList 的令牌在「设置 → 其他」最下方生成
+	a.guideTokenPage(url, noOpen)
+
+	// 3) token：校验通过才落盘，失败允许重输
 	token := strings.TrimSpace(a.flagToken)
 	tries := 0
 	for {
@@ -162,6 +167,31 @@ func (a *App) loginWithToken() error {
 		a.printf("  令牌已保存到 %s\n", saved)
 		return nil
 	}
+}
+
+// guideTokenPage 打印令牌页面地址；本地图形会话下顺手打开浏览器。
+func (a *App) guideTokenPage(base string, noOpen bool) {
+	// 已经用 --token 传入时不必引导
+	if a.flagToken != "" {
+		return
+	}
+
+	link := tokenPageURL(base)
+	a.printf("令牌页面：%s\n", link)
+	a.printf("          （登录后台 → 设置 → 其他 → 页面最下方「令牌」）\n")
+
+	if noOpen {
+		return
+	}
+	if !canOpenBrowser() {
+		a.printf("          复制上面的地址到浏览器打开\n")
+		return
+	}
+	if err := openBrowser(link); err != nil {
+		a.printf("          自动打开失败（%v），请手动打开上面的地址\n", err)
+		return
+	}
+	a.printf("          已在浏览器中打开\n")
 }
 
 // loginWithPassword 账号密码换令牌，适合脚本或忘记 token 时用。
