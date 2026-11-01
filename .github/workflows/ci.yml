@@ -1,9 +1,12 @@
 name: ci
 
+# 只做代码检查与测试，不产出任何打包产物。
+# 打包见 snapshot.yml（手动）和 release.yml（打 tag）。
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   test:
@@ -33,26 +36,3 @@ jobs:
         run: go build ./...
         env:
           CGO_ENABLED: "0"
-
-  snapshot:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
-
-      - name: GoReleaser snapshot
-        uses: goreleaser/goreleaser-action@v6
-        with:
-          version: "~> v2"
-          args: release --snapshot --clean
-
-      - name: 上传产物（仅 PR 预览用，需登录才能下载）
-        uses: actions/upload-artifact@v4
-        with:
-          name: snapshot
-          path: dist/*.tar.gz

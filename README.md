@@ -146,13 +146,23 @@ CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "-s -w" ./cmd/
 
 ### 发布
 
+三条 workflow 分工明确，**推代码不会打包**：
+
+| workflow | 触发 | 做什么 |
+|---|---|---|
+| `ci.yml` | push / PR | 只跑 gofmt、vet、test、build（3 个 OS），不产出任何产物 |
+| `snapshot.yml` | 手动（workflow_dispatch） | 打一次快照包，产物只作 Actions artifact，需登录下载、默认留 7 天 |
+| `release.yml` | 推 tag `v*` | 跑 `goreleaser release`，把产物挂到 GitHub Release |
+
+正式发版：
+
 1. 仓库坐标已固定在 `install.sh`、`.goreleaser.yaml`、`internal/cli/upgrade.go` 三处，
    换账号/组织时一起改（`grep -rl gZDJCVcH --exclude-dir=.git .`）。
 2. `git tag v0.1.0 && git push origin v0.1.0`
-3. GitHub Actions 跑 `goreleaser`，产出 `openlist-cli_<ver>_<os>_<arch>.tar.gz`（Windows 为 zip）+ `checksums.txt`，挂在 Release 上。
+3. Actions 跑 `goreleaser`，产出 `openlist-cli_<ver>_<os>_<arch>.tar.gz`（Windows 为 zip）+ `checksums.txt`，挂在 Release 上。
 4. `install.sh` 与 `upgrade` 都从 Release 下载，资产命名必须保持 `<bin>_<version>_<os>_<arch>`，不要改。
 
-> Actions 的 artifact 需要登录才能下载且会过期，只是 CI 内部用的；对外分发一律走 Release assets。
+> 只想验证打包是否正常、又不想发版时，手动跑一次 `snapshot` workflow 即可。
 
 ## 与 Python 版的差异
 

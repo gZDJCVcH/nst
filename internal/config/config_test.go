@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -46,8 +47,11 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if perm := info.Mode().Perm(); perm != 0o600 {
-		t.Errorf("配置文件权限应为 0600，实际 %o", perm)
+	// Windows 没有 Unix 权限位，OpenFile 的 0600 只影响只读属性，跳过断言
+	if runtime.GOOS != "windows" {
+		if perm := info.Mode().Perm(); perm != 0o600 {
+			t.Errorf("配置文件权限应为 0600，实际 %o", perm)
+		}
 	}
 
 	loaded, err := Load()

@@ -1,0 +1,45 @@
+name: snapshot
+
+# 只在手动触发时打包，产物只作为 Actions artifact（需登录下载，会过期）。
+# 正式分发走 release.yml（打 tag）。
+on:
+  workflow_dispatch:
+    inputs:
+      retention_days:
+        description: 产物保留天数
+        type: number
+        default: 7
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: GoReleaser snapshot
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: release --snapshot --clean
+
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: snapshot-${{ github.sha }}
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/checksums.txt
+          retention-days: ${{ inputs.retention_days }}
