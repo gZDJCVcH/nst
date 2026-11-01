@@ -18,6 +18,9 @@ curl -fsSL .../install.sh | sh -s -- -v v0.2.0 -d ~/bin
 # 国内网络可换下载源
 OPENLIST_CLI_DOWNLOAD_BASE=https://your-mirror.example.com/gh \
   curl -fsSL .../install.sh | sh
+
+# raw.githubusercontent 连不上时，改用 jsDelivr 取脚本（内容相同）
+curl -fsSL https://cdn.jsdelivr.net/gh/gZDJCVcH/openlist-cli@main/install.sh | sh
 ```
 
 手动下载：
