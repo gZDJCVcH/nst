@@ -14,6 +14,14 @@ var (
 )
 
 func init() {
+	// 构建系统可能注入 "none" / 零值时间，统一当成"未提供"
+	if Commit == "none" {
+		Commit = ""
+	}
+	if Date == "" || strings.HasPrefix(Date, "0001-01-01") {
+		Date = ""
+	}
+
 	bi, ok := debug.ReadBuildInfo()
 	if !ok {
 		return
@@ -42,7 +50,12 @@ func String() string {
 		parts = append(parts, Commit)
 	}
 	if Date != "" {
-		parts = append(parts, "built "+Date)
+		date := Date
+		// 只保留日期部分，避免 "built 2026-11-01T14:23:29Z" 这种噪音
+		if len(date) > 10 && date[10] == 'T' {
+			date = date[:10]
+		}
+		parts = append(parts, "built "+date)
 	}
 	if len(parts) == 0 {
 		return Version
