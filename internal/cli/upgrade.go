@@ -22,9 +22,9 @@ import (
 	"openlist-cli/internal/buildinfo"
 )
 
-// defaultRepo 是发布仓库，发版前把 OWNER 换成实际账号/组织即可。
+// defaultRepo 是发布仓库（与 install.sh、.goreleaser.yaml 保持一致）。
 // 也可以用环境变量 OPENLIST_CLI_REPO=owner/repo 覆盖。
-const defaultRepo = "OWNER/openlist-cli"
+const defaultRepo = "gZDJCVcH/openlist-cli"
 
 func repoSlug() string {
 	if v := os.Getenv("OPENLIST_CLI_REPO"); v != "" {

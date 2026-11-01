@@ -68,24 +68,24 @@ release:
   footer: |
     **安装**
     ```
-    curl -fsSL https://raw.githubusercontent.com/OWNER/openlist-cli/main/install.sh | sh
+    curl -fsSL https://raw.githubusercontent.com/gZDJCVcH/openlist-cli/main/install.sh | sh
     ```
 
-# 需要 Homebrew / Scoop / deb-rpm 时再打开，注意把 OWNER 换成实际账号。
+# 需要 Homebrew / Scoop / deb-rpm 时再打开，注意把 gZDJCVcH 换成实际账号。
 # homebrew_casks:
 #   - repository:
-#       owner: OWNER
+#       owner: gZDJCVcH
 #       name: homebrew-tap
-#     homepage: https://github.com/OWNER/openlist-cli
+#     homepage: https://github.com/gZDJCVcH/openlist-cli
 #     description: OpenList 命令行客户端
 #     license: MIT
 #
 # scoops:
 #   - repository:
-#       owner: OWNER
+#       owner: gZDJCVcH
 #       name: scoop-bucket
 #     directory: bucket
-#     homepage: https://github.com/OWNER/openlist-cli
+#     homepage: https://github.com/gZDJCVcH/openlist-cli
 #     description: OpenList 命令行客户端
 #     license: MIT
 #

@@ -10,7 +10,7 @@
 
 ```bash
 # 一键安装（推荐）：默认装到 /usr/local/bin，不可写则 ~/.local/bin
-curl -fsSL https://raw.githubusercontent.com/OWNER/openlist-cli/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/gZDJCVcH/openlist-cli/main/install.sh | sh
 
 # 指定版本 / 目录
 curl -fsSL .../install.sh | sh -s -- -v v0.2.0 -d ~/bin
@@ -25,17 +25,17 @@ OPENLIST_CLI_DOWNLOAD_BASE=https://your-mirror.example.com/gh \
 ```bash
 # 1) 拿最新 tag（跟随一次 302，不消耗 API 配额）
 tag=$(curl -fsSLI -o /dev/null -w '%{url_effective}' \
-      https://github.com/OWNER/openlist-cli/releases/latest | sed 's#.*/##')
+      https://github.com/gZDJCVcH/openlist-cli/releases/latest | sed 's#.*/##')
 
 # 2) 下载对应平台（linux_amd64 / linux_arm64 / darwin_arm64 ...）
-curl -fsSLO "https://github.com/OWNER/openlist-cli/releases/download/$tag/openlist-cli_${tag#v}_linux_amd64.tar.gz"
+curl -fsSLO "https://github.com/gZDJCVcH/openlist-cli/releases/download/$tag/openlist-cli_${tag#v}_linux_amd64.tar.gz"
 tar -xzf openlist-cli_*.tar.gz && sudo install -m 0755 openlist-cli /usr/local/bin/
 
 # 或用 gh
-gh release download "$tag" -R OWNER/openlist-cli -p '*linux_amd64*'
+gh release download "$tag" -R gZDJCVcH/openlist-cli -p '*linux_amd64*'
 ```
 
-有 Go 工具链时也可以 `go install github.com/OWNER/openlist-cli/cmd/openlist-cli@latest`。
+有 Go 工具链时也可以 `go install github.com/gZDJCVcH/openlist-cli/cmd/openlist-cli@latest`。
 
 自升级：
 
@@ -146,10 +146,8 @@ CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "-s -w" ./cmd/
 
 ### 发布
 
-1. 把仓库里三处 `OWNER` 换成实际账号/组织：
-   ```bash
-   grep -rl OWNER --exclude-dir=.git .   # install.sh / .goreleaser.yaml / internal/cli/upgrade.go / README.md
-   ```
+1. 仓库坐标已固定在 `install.sh`、`.goreleaser.yaml`、`internal/cli/upgrade.go` 三处，
+   换账号/组织时一起改（`grep -rl gZDJCVcH --exclude-dir=.git .`）。
 2. `git tag v0.1.0 && git push origin v0.1.0`
 3. GitHub Actions 跑 `goreleaser`，产出 `openlist-cli_<ver>_<os>_<arch>.tar.gz`（Windows 为 zip）+ `checksums.txt`，挂在 Release 上。
 4. `install.sh` 与 `upgrade` 都从 Release 下载，资产命名必须保持 `<bin>_<version>_<os>_<arch>`，不要改。

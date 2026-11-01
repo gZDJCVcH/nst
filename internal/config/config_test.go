@@ -9,7 +9,9 @@ import (
 // 回归：不能用 os.UserConfigDir()，macOS 上它指向 ~/Library/Application Support。
 func TestDirKeepsDotConfigLayout(t *testing.T) {
 	home := t.TempDir()
+	// Windows 上 os.UserHomeDir 读 USERPROFILE，两个都设才跨平台
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	t.Setenv("XDG_CONFIG_HOME", "")
 
 	want := filepath.Join(home, ".config", "openlist-cli")

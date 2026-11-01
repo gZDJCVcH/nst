@@ -1,7 +1,7 @@
 #!/bin/sh
 # openlist-cli 一键安装脚本
 #
-#   curl -fsSL https://raw.githubusercontent.com/OWNER/openlist-cli/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/gZDJCVcH/openlist-cli/main/install.sh | sh
 #   curl -fsSL .../install.sh | sh -s -- -v v0.2.0
 #   curl -fsSL .../install.sh | sh -s -- -d ~/bin
 #
@@ -10,7 +10,7 @@
 #   BIN_DIR                     安装目录
 set -eu
 
-OWNER="OWNER"
+gZDJCVcH="gZDJCVcH"
 REPO="openlist-cli"
 BIN="openlist-cli"
 
@@ -29,7 +29,7 @@ usage() {
   -h, --help             显示本帮助
 
 示例:
-  curl -fsSL https://raw.githubusercontent.com/$OWNER/$REPO/main/install.sh | sh
+  curl -fsSL https://raw.githubusercontent.com/$gZDJCVcH/$REPO/main/install.sh | sh
   curl -fsSL .../install.sh | sh -s -- -v v0.2.0 -d ~/bin
 EOF
 }
@@ -113,7 +113,7 @@ resolve_tag() {
 	# 跟随一次 302 就能拿到 tag，不消耗 GitHub API 配额
 	if command -v curl >/dev/null 2>&1; then
 		tag=$(curl -fsSLI -o /dev/null -w '%{url_effective}' \
-			"$BASE/$OWNER/$REPO/releases/latest" 2>/dev/null | sed 's#.*/##')
+			"$BASE/$gZDJCVcH/$REPO/releases/latest" 2>/dev/null | sed 's#.*/##')
 		if [ -z "$tag" ] || [ "$tag" = "latest" ]; then
 			echo "无法解析最新版本；请用 -v 指定版本号" >&2
 			exit 1
@@ -144,8 +144,8 @@ EXT="tar.gz"
 if [ "$OS" = "windows" ]; then EXT="zip"; fi
 
 ASSET="${BIN}_${VER}_${OS}_${ARCH}.${EXT}"
-ASSET_URL="$BASE/$OWNER/$REPO/releases/download/$TAG/$ASSET"
-SUMS_URL="$BASE/$OWNER/$REPO/releases/download/$TAG/checksums.txt"
+ASSET_URL="$BASE/$gZDJCVcH/$REPO/releases/download/$TAG/$ASSET"
+SUMS_URL="$BASE/$gZDJCVcH/$REPO/releases/download/$TAG/checksums.txt"
 
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT INT TERM
