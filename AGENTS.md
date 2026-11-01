@@ -5,8 +5,7 @@
 ## 项目定位
 
 `openlist-cli` 是 [OpenList](https://github.com/OpenListTeam/OpenList) 的命令行客户端，Go 实现。
-
-由同目录下的 Python 版（`../openlist-cli`）**逐命令移植**而来。移植原则是**行为等价优先**：命令名、别名、参数、输出格式、错误提示、退出码都尽量与 Python 版一致；只有在语言能力确实不支持时才偏离，并在 README 的差异表里登记。
+服务端对应 OpenList v4.x，API 与 AList v3 兼容。
 
 对外依赖只有两个：`spf13/cobra`（命令树 + pflag）和 `golang.org/x/term`（密码输入、istty 判断）。**不要再引入第三方依赖**，这是刻意保持的约束。
 
@@ -87,14 +86,14 @@ gofmt -l .           # 应为空
 | 查不存在的路径返回 500 | 115 返回 `500 object not found` 而不是 404。判断存在性用「列举父目录比对文件名」（`Exists()`） |
 | 任务接口没有全局列表 | 任务是**按类型分组**的：`/api/task/{upload,copy,move,offline_download,offline_download_transfer,decompress,decompress_upload}/{undone,done,info,cancel,delete,retry,clear_done,clear_succeeded}`。没有 `/api/task/list`，访问它会被 gin 兜底成 SPA 的 HTML |
 | 任务操作的 `tid` 位置 | 服务端用 `c.Query("tid")` 读，必须拼在 URL 上，放 JSON body 里无效 |
-| `/api/admin/storage/list`、`/api/admin/driver/list` 只接受 GET | 用 POST 会掉进 SPA 路由，返回 HTML。`drivers` 响应是 `{驱动名: {...}}` 的 dict |
-| 目录列表前后不一致 | 服务端也有缓存（他们为了防限流特意加的）。校验以 sha1 为准，别反复重试刷列表 |
+| `/api/admin/storage/list`、`/api/admin/driver/list` 只接受 GET | 用 POST 会掉进 SPA 路由，返回 HTML。`drivers` 响应是 `{驱动名: {...}}` 形式的对象 |
+| 目录列表前后不一致 | 服务端也有缓存。校验以 sha1 为准，别反复重试刷列表 |
 
-## Go 特有的坑（本仓库已踩过）
+## 语言与平台相关的约束
 
 | 坑 | 对策 |
 |---|---|
-| `os.UserConfigDir()` 在 macOS 返回 `~/Library/Application Support` | `config.Dir()` 手工拼 `$XDG_CONFIG_HOME` → `~/.config`，保 Python 版老配置 |
+| `os.UserConfigDir()` 在 macOS 返回 `~/Library/Application Support` | `config.Dir()` 手工拼 `$XDG_CONFIG_HOME` → `~/.config`，配置位置不随平台变化 |
 | `filepath` 用在远端路径上，Windows 会把 `/` 变成 `\` | 远端一律 `internal/pathx`（内部用 `path`），只有本地路径用 `filepath` |
 | `path.Clean` 会折叠开头的 `//`，与 `posixpath.normpath` 不同 | `NormalizeRemote` 先手工折叠再 `path.Clean`，有单测覆盖 |
 | `encoding/json` 默认把数字解成 float64，`id`/`size` 回显成科学计数法 | 统一用 `jsonx.Decode`（`UseNumber`），读值走 `jsonx.Int/Str/Bool` |

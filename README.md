@@ -2,8 +2,6 @@
 
 [OpenList](https://github.com/OpenListTeam/OpenList) 的命令行客户端，Go 实现，**单个静态二进制、零运行时依赖**。
 
-由 Python 版 [`openlist-cli`](../openlist-cli) 迁移而来，命令、参数、输出格式、退出码尽量保持一致。
-
 服务端对应 OpenList v4.x（实测 v4.2.9），API 与 AList v3 兼容。
 
 ## 安装
@@ -167,18 +165,12 @@ CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "-s -w" ./cmd/
 
 > 只想验证打包是否正常、又不想发版时，手动跑一次 `snapshot` workflow 即可。
 
-## 与 Python 版的差异
+## 已知限制
 
-| 项 | Python 版 | Go 版 |
-|---|---|---|
-| 运行环境 | 需要 Python 3 | 单二进制，无运行时依赖 |
-| 体积 | 仓库源码 | 约 5–8 MB / 平台 |
-| `--encoding` | 支持任意 codec | **仅 utf-8**，其他编码会提示先用 iconv |
-| 32 位 ARM 自升级 | — | 不支持（`upgrade` 会提示改用 install.sh） |
-| `--json` 字段顺序 | 按插入顺序 | 固定结构体字段顺序；map 类按 key 排序 |
-| 交互式 `auth login` | getpass | `x/term`，行为一致（非 tty 直接拒绝） |
-
-其余：命令、别名、参数、错误提示、脱敏规则、限流策略、退出码均对齐。
+- `--encoding` 只支持 `utf-8`，其他编码会提示先用 `iconv` 转换。
+- 32 位 ARM 不支持 `upgrade` 自升级，会提示改用 `install.sh` 重新安装。
+- `--json` 输出中结构体字段顺序固定，`map` 类字段按 key 字母序排列。
+- `auth login` 在非 tty 环境不交互询问，必须用参数传入。
 
 ## 设计约束
 

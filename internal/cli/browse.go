@@ -279,7 +279,7 @@ func (a *App) readCmd() *cobra.Command {
 	return cmd
 }
 
-// toValidUTF8 把非法字节替换成 U+FFFD，等价于 Python 的 errors="replace"。
+// toValidUTF8 把非法字节替换成 U+FFFD，而不是直接报错。
 func toValidUTF8(b []byte) []byte {
 	if utf8.Valid(b) {
 		return b

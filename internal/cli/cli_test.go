@@ -144,7 +144,7 @@ func TestResolveDst(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !strings.HasPrefix(got, "/115/x/") || strings.Contains(got, "remote:") {
-		t.Errorf("回归：remote: 前缀不该进路径：%q", got)
+		t.Errorf("remote: 前缀不该进路径：%q", got)
 	}
 
 	if _, err := app.resolveDst(t.Context(), c, "/115/a.cue", "local:/tmp/a.cue"); err == nil {

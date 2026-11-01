@@ -24,7 +24,7 @@ func Decode(b []byte) (any, error) {
 // DecodeString 同上，输入是字符串。
 func DecodeString(s string) (any, error) { return Decode([]byte(s)) }
 
-// Encode 序列化为紧凑 JSON，且不转义 < > &（与 Python 输出一致）。
+// Encode 序列化为紧凑 JSON，不转义 < > &。
 func Encode(v any) ([]byte, error) {
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
@@ -87,7 +87,7 @@ func StrOf(v any) string {
 	}
 }
 
-// Bool 读布尔字段，缺失按 false（与 Python 的 dict.get 语义一致）。
+// Bool 读布尔字段，字段缺失或类型不符时按 false 处理。
 func Bool(m map[string]any, key string) bool {
 	if m == nil {
 		return false

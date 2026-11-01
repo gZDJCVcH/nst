@@ -276,8 +276,8 @@ func readLine(r io.Reader) (string, error) {
 
 // normalizeOptionalValueFlags 让 `--password secret` 与 `--password=secret` 等价。
 //
-// pflag 的 NoOptDefVal 只认后者；Python 版 argparse 的 nargs="?" 两种都认，
-// 这里做一次预处理保持行为一致。`--password` 后面紧跟另一个 flag 时保持为空值。
+// pflag 的 NoOptDefVal 只认 `--password=值` 形式，这里做一次预处理，
+// 让空格分隔的写法也生效。`--password` 后面紧跟另一个 flag 时保持为空值。
 func normalizeOptionalValueFlags(argv []string) []string {
 	out := make([]string, 0, len(argv))
 	for i := 0; i < len(argv); i++ {

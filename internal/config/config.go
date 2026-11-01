@@ -1,8 +1,8 @@
 // Package config 管理本地配置：服务地址与令牌。
 //
-// 路径刻意与 Python 版保持一致（$XDG_CONFIG_HOME/openlist-cli/config.json，
-// 缺省 ~/.config/openlist-cli/config.json），不能用 os.UserConfigDir()：
-// 它在 macOS 上返回 ~/Library/Application Support，会让老用户配置凭空消失。
+// 配置固定放在 $XDG_CONFIG_HOME/openlist-cli/config.json，缺省
+// ~/.config/openlist-cli/config.json。不用 os.UserConfigDir()：它在 macOS 上
+// 返回 ~/Library/Application Support，会让配置位置随平台漂移。
 package config
 
 import (

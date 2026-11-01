@@ -17,7 +17,7 @@ import (
 	"openlist-cli/internal/pathx"
 )
 
-// 默认参数，与 Python 版保持一致。
+// 默认参数。
 const (
 	DefaultTimeout  = 30 * time.Second
 	CloudInterval   = 1 * time.Second

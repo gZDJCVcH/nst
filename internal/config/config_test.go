@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// 回归：不能用 os.UserConfigDir()，macOS 上它指向 ~/Library/Application Support。
+// 配置目录固定为 ~/.config/openlist-cli，不能用 os.UserConfigDir()（macOS 指向 ~/Library/Application Support）。
 func TestDirKeepsDotConfigLayout(t *testing.T) {
 	home := t.TempDir()
 	// Windows 上 os.UserHomeDir 读 USERPROFILE，两个都设才跨平台

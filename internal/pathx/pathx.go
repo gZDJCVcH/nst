@@ -1,6 +1,6 @@
 // Package pathx 处理 local: / remote: 前缀路径。
 //
-// 设计约束（沿用 Python 版）：路径必须显式带前缀，绝不智能推断。
+// 设计约束：路径必须显式带前缀，绝不智能推断。
 // 远端路径一律用 path 包处理，不能用 filepath —— 后者在 Windows 上会把 / 变成 \。
 package pathx
 
@@ -126,8 +126,8 @@ func SplitRemote(p string) (dir, name string) {
 	return path.Dir(p), path.Base(p)
 }
 
-// escape 按 RFC 3986 unreserved 规则做百分号编码，与 Python 的 urllib.parse.quote 对齐：
-// 只有 A-Z a-z 0-9 - . _ ~ 保留，其余（含 + = : 空格 中文）全部编码。
+// escape 按 RFC 3986 unreserved 规则做百分号编码：只有 A-Z a-z 0-9 - . _ ~
+// 保留，其余（含 + = : 空格 中文）全部编码。
 func escape(s string, keepSlash bool) string {
 	const upperhex = "0123456789ABCDEF"
 	var b strings.Builder
