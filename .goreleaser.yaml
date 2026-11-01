@@ -1,0 +1,94 @@
+version: 2
+
+project_name: openlist-cli
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: openlist-cli
+    main: ./cmd/openlist-cli
+    binary: openlist-cli
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X openlist-cli/internal/buildinfo.Version={{ .Version }}
+      - -X openlist-cli/internal/buildinfo.Commit={{ .ShortCommit }}
+      - -X openlist-cli/internal/buildinfo.Date={{ .CommitDate }}
+    goos:
+      - linux
+      - darwin
+      - windows
+      - freebsd
+    goarch:
+      - amd64
+      - arm64
+      - arm
+    goarm:
+      - "7"
+    ignore:
+      - goos: darwin
+        goarch: arm
+      - goos: windows
+        goarch: arm
+      - goos: freebsd
+        goarch: arm
+      - goos: freebsd
+        goarch: arm64
+
+archives:
+  - formats: [tar.gz]
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+      {{- with .Arm }}v{{ . }}{{ end }}
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - README.md
+      - AGENTS.md
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  use: github-native
+
+release:
+  draft: false
+  prerelease: auto
+  footer: |
+    **安装**
+    ```
+    curl -fsSL https://raw.githubusercontent.com/OWNER/openlist-cli/main/install.sh | sh
+    ```
+
+# 需要 Homebrew / Scoop / deb-rpm 时再打开，注意把 OWNER 换成实际账号。
+# homebrew_casks:
+#   - repository:
+#       owner: OWNER
+#       name: homebrew-tap
+#     homepage: https://github.com/OWNER/openlist-cli
+#     description: OpenList 命令行客户端
+#     license: MIT
+#
+# scoops:
+#   - repository:
+#       owner: OWNER
+#       name: scoop-bucket
+#     directory: bucket
+#     homepage: https://github.com/OWNER/openlist-cli
+#     description: OpenList 命令行客户端
+#     license: MIT
+#
+# nfpms:
+#   - formats: [deb, rpm]
+#     bindir: /usr/local/bin
