@@ -6,12 +6,22 @@
 
 | 命令 | 主要参数 | 说明 |
 |---|---|---|
-| `auth login` | `--url <地址>`、`-u <用户名>`、`--password [值]`、`--token <值>`、`--no-open` | 探活后引导到令牌页面，校验通过才保存；非 tty 必须用参数传入 |
+| `auth login` | `--mode <模式>`、`--url <地址>`、`--token <值>`、`-u <用户名>`、`--password [值]`、`--otp <码>`、`--no-open`、`--json` | 三模式登录，见下方 |
 | `auth logout` | | 清除本地令牌 |
 | `auth token` | | 打印当前令牌 |
 | `auth whoami` | | 查看当前身份与权限 |
 
 `--password` 支持 `--password=secret` 与 `--password secret` 两种写法；不带值时会提示输入（仅 tty）。
+
+`--mode` 取值 `auto`（默认）/ `context` / `flags` / `interactive`：
+
+| 模式 | 凭据来源 | 阻塞 | 落盘 |
+|---|---|---|---|
+| `context` | 配置文件 + `OPENLIST_URL` / `OPENLIST_TOKEN` | 否 | 否 |
+| `flags` | `--url` + `--token`（或 `--password`）一次给齐 | 否 | 是 |
+| `interactive` | 逐步询问 + 令牌页面 | 是 | 是 |
+
+`auto` 推断：参数齐全 → `flags`；已有完整上下文 → `context`；否则 tty → `interactive`、非 tty → 结构化报错。非交互模式不询问、不打开浏览器、不重试；`--json` 输出 `{mode, source, url, valid, saved, user, role, error}`，失败时 `valid:false` 带 `error`。
 
 ## 浏览
 

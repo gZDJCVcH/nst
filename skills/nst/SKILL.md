@@ -24,7 +24,9 @@ nst 是 NAS 工具箱的单一入口，一个静态二进制。先判断要操�
 - 破坏性操作默认二次确认；自动化场景显式加 `-y` 前必须先确认目标路径
 - 失败看退出码与 stderr：1 业务失败、2 路径/配置错误、3 接口错误、4 网络错误、130 被中断
 - 全局参数：`--url`、`--token`、`--timeout`、`--rate`、`--local-rate`、`--cache-ttl`、`--no-cache`
-- 首次使用先登录：`nst openlist auth login --url <地址>`；非 tty 环境必须用参数传入
+- 登录统一支持三种模式：`context`（复用配置/环境变量）、`flags`（参数一次给齐）、`interactive`（人在终端逐步询问）；默认 `auto` 推断，`--mode` 可强制
+- Agent 优先用参数模式，非阻塞、加 `--json` 拿结构化结果；非 tty 缺凭据会直接返回错误而不是阻塞询问
+- 各服务的登录参数与示例见对应 `references/<服务>/README.md`
 
 ## 读取顺序
 

@@ -60,10 +60,16 @@ nst upgrade           # 下载校验后原地替换
 ## 快速开始
 
 ```bash
-# 登录：问地址 → 探活 → 给出令牌页面（本地会话会顺手打开浏览器）→ 粘贴 token → 校验通过才保存
-nst openlist auth login --url http://192.168.1.10:5244
+# 交互式登录（人用）：问地址 → 探活 → 令牌页面 → 粘贴 token → 校验通过才保存
+nst openlist auth login --mode=interactive --url http://192.168.1.10:5244
 
-# 或用账号密码换 token
+# 参数模式（Agent / 脚本）：一次给齐，不阻塞、不打开浏览器
+nst openlist auth login --mode=flags --url http://192.168.1.10:5244 --token 'your-token' --json
+
+# 上下文模式：复用已保存配置或环境变量
+nst openlist auth login --mode=context --json
+
+# 账号密码换 token
 nst openlist auth login --url http://192.168.1.10:5244 -u admin --password
 
 # 日常
@@ -73,6 +79,20 @@ nst openlist download remote:/115/x.mkv local:./x.mkv
 nst openlist upload local:./a.cue remote:/115/
 nst openlist verify local:./dir remote:/115/dir   # 按大小 + sha1 比对，不下载
 ```
+
+### 登录模式
+
+`auth login` 支持三种凭据提供方式，`--mode` 省略时为 `auto` 自动推断。
+
+| 模式 | 凭据来源 | 阻塞 | 落盘 | 适用 |
+|---|---|---|---|---|
+| `context` | `~/.config/openlist-cli/config.json` 与 `OPENLIST_URL` / `OPENLIST_TOKEN` | 否 | 否 | 复用机器或会话已有登录态 |
+| `flags` | `--url` + `--token`（或 `--password`）一次给齐 | 否 | 是 | Agent、CI、脚本 |
+| `interactive` | 逐步询问，可打开令牌页面 | 是 | 是 | 人在终端操作 |
+
+`auto` 判定：参数齐全 → `flags`；已有完整上下文 → `context`；否则 tty 下 → `interactive`，非 tty 直接返回结构化错误。字段优先级 `--url` / `--token` > 环境变量 > 配置文件 > 交互询问。
+
+`--json` 输出 `{mode, source, url, valid, saved, user, role, error}`；非交互模式下 stdout 只有这一份 JSON，失败时 `valid:false` 并带 `error`，退出码沿用 1/2/3/4。
 
 ### 路径必须带前缀
 
@@ -91,7 +111,7 @@ remote:/<远端路径>    例如 remote:/115/音乐
 
 | 命令 | 别名 | 说明 |
 |---|---|---|
-| `auth login/logout/token/whoami` | | 登录、登出、打印令牌、看身份 |
+| `auth login/logout/token/whoami` | | 三模式登录、登出、打印令牌、看身份 |
 | `list <path>` | `ls` | 列目录（`-l` 详细、`--refresh` 强刷缓存） |
 | `stat <path>` | | 文件/目录详情 |
 | `tree <path>` | | 树形展开（`-L` 限深） |
@@ -205,7 +225,7 @@ CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "-s -w" ./cmd/
 - `--encoding` 只支持 `utf-8`，其他编码会提示先用 `iconv` 转换。
 - 32 位 ARM 不支持 `upgrade` 自升级，会提示改用 `install.sh` 重新安装。
 - `--json` 输出中结构体字段顺序固定，`map` 类字段按 key 字母序排列。
-- `auth login` 在非 tty 环境不交互询问，必须用参数传入。
+- `auth login` 在非 tty 环境不会进入 `interactive`；`flags` 与 `context` 均可非阻塞使用。
 
 ## 设计约束
 

@@ -24,6 +24,7 @@ internal/client/        HTTP 层
   util.go               URL 编码、挂载点排序
 internal/pathx/         local: / remote: 前缀解析
 internal/config/        ~/.config/openlist-cli/config.json 读写（0600 原子写）
+internal/credential/    登录模式与凭据解析（服务无关）
 internal/output/        尺寸/时间格式化、列表渲染、进度、脱敏、确认
 internal/jsonx/         任意 JSON 的宽松读取（json.Number，不丢精度）
 skills/nst/             Agent Skill：SKILL.md 索引 + references/<子命令>/ 子文档
@@ -129,6 +130,15 @@ go test ./...          # 纯逻辑 + httptest 假服务端，不碰真实网络
 5. 更新 `README.md` 的命令表
 6. 涉及新参数或触发场景时，更新 `skills/nst/references/openlist/` 下对应文档
 
+## 登录模式约定
+
+`internal/credential` 只做模式判定与字段优先级，不含服务特定逻辑；探活、校验、保存留在 `internal/cli/auth.go`。后续服务复用同一套 `Resolve` 与 `Result`，在服务侧补自己的探活与校验即可。
+
+- 三种模式：`context`（配置 + 环境变量）、`flags`（参数一次给齐）、`interactive`（逐步询问）
+- 默认 `auto` 推断，`--mode` 可强制；字段优先级 `--url` / `--token` > 环境变量 > 配置文件 > 交互询问
+- 非交互模式不询问、不打开浏览器、不重试；`--json` 输出结构化 `Result`，stdout 保持纯 JSON
+- 凭据只在 `flags` / `interactive` 下落盘；`context` 不重复写配置
+
 ## Skill 维护约定
 
 - `skills/nst/SKILL.md` 只写索引与通用约定，不堆具体命令细节
@@ -151,3 +161,4 @@ go test ./...          # 纯逻辑 + httptest 假服务端，不碰真实网络
 - 在用户既有目录上做写操作测试
 - 改 Release 资产命名（`nst_<ver>_<os>_<arch>`），`install.sh` 和 `upgrade` 都依赖它
 - 在 `skills/` 下再嵌套 `SKILL.md` 当作子 skill
+- 把服务特定逻辑（探活、换 token、保存配置）塞进 `internal/credential`

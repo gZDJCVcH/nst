@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -10,7 +11,9 @@ import (
 
 	"nst/internal/client"
 	"nst/internal/config"
+	"nst/internal/credential"
 	"nst/internal/jsonx"
+	"nst/internal/output"
 )
 
 const maxTokenTries = 3
@@ -27,17 +30,32 @@ func (a *App) authCmd() *cobra.Command {
 func (a *App) authLoginCmd() *cobra.Command {
 	var username, password, otp string
 	var noOpen bool
+	var modeRaw string
 	cmd := &cobra.Command{
 		Use:   "login",
-		Short: "登录并保存令牌（交互式）",
-		Long: "默认交互式：问地址 → 探活 → 粘贴 token → 校验 → 通过才保存。\n" +
-			"指定 --password 则改为账号密码换令牌。",
+		Short: "登录并保存令牌",
+		Long: "三种登录模式：\n" +
+			"  context      读取已保存配置与环境变量，不交互\n" +
+			"  flags        用 --url 与 --token / --password 一次传入，不交互\n" +
+			"  interactive  逐步询问，可打开令牌页面\n\n" +
+			"默认 auto：参数齐全走 flags，已有完整配置/环境变量走 context，" +
+			"否则 tty 下走 interactive；非 tty 无凭据直接报错。",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if cmd.Flags().Changed("password") || otp != "" {
-				return a.loginWithPassword(username, password, otp)
+			mode, err := credential.ParseMode(modeRaw)
+			if err != nil {
+				return a.loginFailure(exitf(2, "%v", err))
 			}
-			return a.loginWithToken(noOpen)
+			return a.runLogin(credential.Input{
+				Mode:         mode,
+				FlagURL:      a.flagURL,
+				FlagToken:    a.flagToken,
+				FlagUsername: username,
+				FlagPassword: password,
+				FlagOTP:      otp,
+				UsePassword:  cmd.Flags().Changed("password") || otp != "",
+				TTY:          a.isTTY(),
+			}, noOpen)
 		},
 	}
 	cmd.Flags().StringVarP(&username, "username", "u", "admin", "仅密码模式使用，默认 admin")
@@ -45,128 +63,233 @@ func (a *App) authLoginCmd() *cobra.Command {
 	cmd.Flags().Lookup("password").NoOptDefVal = ""
 	cmd.Flags().StringVar(&otp, "otp", "", "两步验证码")
 	cmd.Flags().BoolVar(&noOpen, "no-open", false, "不自动打开浏览器（仅打印令牌页面地址）")
+	cmd.Flags().StringVar(&modeRaw, "mode", "auto", "登录模式：auto / context / flags / interactive")
 	return cmd
 }
 
-// loginWithToken 交互式：问地址 → 探活 → 要 token → 校验 → 保存。
-func (a *App) loginWithToken(noOpen bool) error {
+// runLogin 统一执行三种模式：解析凭据 → 探活 → 校验 → 按需保存 → 输出结果。
+func (a *App) runLogin(in credential.Input, noOpen bool) error {
 	cfg, err := config.Load()
 	if err != nil {
-		return err
+		return a.loginFailure(err)
+	}
+	in.ContextURL = config.Str(cfg, "url")
+	in.ContextToken = config.Str(cfg, "token")
+
+	c, err := credential.Resolve(in)
+	if err != nil {
+		return a.loginFailure(err)
 	}
 
-	url := NormalizeURL(a.flagURL)
+	// 1) 地址：交互模式允许询问与重输，非交互模式只探活一次，失败立即返回。
+	url := NormalizeURL(c.URL)
+	if url == "" && c.Mode == credential.ModeInteractive {
+		v, promptErr := a.prompt("OpenList 地址（IP:端口 或域名，可省略 http://）", "http://127.0.0.1:5244")
+		if promptErr != nil {
+			return a.loginFailure(promptErr)
+		}
+		url = NormalizeURL(v)
+	}
 	if url == "" {
-		if !a.isTTY() {
-			return exitf(1, "非交互环境请同时指定 --url 和 --token")
-		}
-		def := config.Str(cfg, "url")
-		if def == "" {
-			def = "http://127.0.0.1:5244"
-		}
-		url, err = a.prompt("OpenList 地址（IP:端口 或域名，可省略 http://）", NormalizeURL(def))
-		if err != nil {
-			return err
-		}
-		url = NormalizeURL(url)
+		return a.loginFailure(errors.New("没有地址，已取消"))
 	}
-
-	// 1) 探活：确认地址能连上、对方确实是 OpenList
 	for {
-		if url == "" {
-			return exitf(1, "没有地址，已取消")
+		title, ver, probeErr := a.probeOpenList(url)
+		if probeErr == nil {
+			if !a.jsonOut {
+				a.printf("✓ 已连接 %s   %s %s\n", url, title, ver)
+			}
+			break
 		}
-		probe, err := client.New(url, "")
-		if err != nil {
-			return exitf(1, "%v", err)
+		if c.Mode != credential.ModeInteractive {
+			return a.loginFailure(probeErr)
 		}
-		probe.Timeout = 10 * time.Second
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		info, probeErr := probe.PublicSettings(ctx)
-		cancel()
-
-		if probeErr != nil {
+		if !a.jsonOut {
 			a.printf("✗ 连不上 %s：%v\n", url, probeErr)
-			if !a.isTTY() {
-				return exitf(2, "")
-			}
-			url, err = a.prompt("重新输入地址", url)
-			if err != nil {
-				return err
-			}
-			url = NormalizeURL(url)
-			continue
 		}
-
-		rawVersion := jsonx.Str(info, "version")
-		short := strings.TrimSpace(strings.SplitN(rawVersion, " (", 2)[0])
-		if short == "" {
-			short = "未知版本"
+		v, promptErr := a.prompt("重新输入地址", url)
+		if promptErr != nil {
+			return a.loginFailure(promptErr)
 		}
-		title := jsonx.Str(info, "site_title")
-		if title == "" {
-			title = "OpenList"
+		url = NormalizeURL(v)
+		if url == "" {
+			return a.loginFailure(errors.New("没有地址，已取消"))
 		}
-		a.printf("✓ 已连接 %s   %s %s\n", url, title, short)
-		break
 	}
 
-	// 2) 引导到令牌页面：OpenList 的令牌在「设置 → 其他」最下方生成
-	a.guideTokenPage(url, noOpen)
+	// 2) 凭据：只有交互模式才询问密码、引导令牌页面。
+	token := c.Token
+	password := c.Password
+	if c.Mode == credential.ModeInteractive {
+		if c.UsePassword && password == "" {
+			password, err = a.promptSecret(fmt.Sprintf("%s 的密码", c.Username))
+			if err != nil {
+				return a.loginFailure(err)
+			}
+		}
+		if !c.UsePassword && token == "" {
+			a.guideTokenPage(url, noOpen)
+		}
+	}
 
-	// 3) token：校验通过才落盘，失败允许重输
-	token := strings.TrimSpace(a.flagToken)
+	// 3) 账号密码换令牌。
+	if c.UsePassword {
+		token, err = a.exchangePassword(url, c.Username, password, c.OTP)
+		if err != nil {
+			return a.loginFailure(err)
+		}
+	}
+
+	// 4) 校验；交互模式允许重输 token，其余模式一次失败即返回。
 	tries := 0
 	for {
 		if token == "" {
-			token, err = a.promptSecret("粘贴 token")
-			if err != nil {
-				return err
+			if c.Mode != credential.ModeInteractive {
+				return a.loginFailure(errors.New("缺少令牌"))
 			}
-		}
-		if token == "" {
-			return exitf(1, "没有输入 token，已取消")
-		}
-
-		c, err := client.New(url, token)
-		if err != nil {
-			return exitf(1, "%v", err)
-		}
-		if a.timeoutSec > 0 {
-			c.Timeout = time.Duration(a.timeoutSec) * time.Second
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), c.Timeout)
-		me, meErr := c.Me(ctx)
-		cancel()
-
-		if meErr != nil {
-			var apiErr *client.ApiError
-			if asAPIError(meErr, &apiErr) {
-				tries++
-				a.printf("✗ 令牌校验失败：%s（code=%s）\n", apiErr.Message, codeString(apiErr.Code))
-				if tries >= maxTokenTries {
-					return exitf(1, "连续 %d 次校验失败，已退出。重新执行 auth login 再试", tries)
-				}
-				if !a.isTTY() {
-					return exitf(3, "")
-				}
-				token = ""
-				continue
+			tk, promptErr := a.promptSecret("粘贴 token")
+			if promptErr != nil {
+				return a.loginFailure(promptErr)
 			}
-			return exitf(1, "✗ 校验时网络中断：%v", meErr)
+			if tk == "" {
+				return a.loginFailure(errors.New("没有输入 token，已取消"))
+			}
+			token = tk
 		}
 
-		cfg["url"] = url
-		cfg["token"] = token
-		cfg["username"] = jsonx.Str(me, "username")
-		saved, err := config.Save(cfg)
-		if err != nil {
-			return err
+		me, validateErr := a.validateToken(url, token)
+		if validateErr == nil {
+			saved := false
+			if c.Mode != credential.ModeContext {
+				cfg["url"] = url
+				cfg["token"] = token
+				cfg["username"] = jsonx.Str(me, "username")
+				if _, saveErr := config.Save(cfg); saveErr != nil {
+					return a.loginFailure(saveErr)
+				}
+				saved = true
+			}
+			return a.loginResult(credential.Result{
+				Mode:   c.Mode,
+				Source: c.Source,
+				URL:    url,
+				Valid:  true,
+				Saved:  saved,
+				User:   jsonx.Str(me, "username"),
+				Role:   roleOf(me),
+			})
 		}
-		a.printf("✓ 已登录：%s（%s）\n", jsonx.Str(me, "username"), roleOf(me))
-		a.printf("  令牌已保存到 %s\n", saved)
-		return nil
+
+		tries++
+		if c.Mode != credential.ModeInteractive || tries >= maxTokenTries {
+			return a.loginFailure(validateErr)
+		}
+		if !a.jsonOut {
+			a.printf("✗ 令牌校验失败：%v\n", validateErr)
+		}
+		token = ""
 	}
+}
+
+// authClient 构造登录链路用的客户端。认证接口不涉及存储驱动，不套网盘限流。
+func authClient(url, token string) (*client.Client, error) {
+	c, err := client.New(url, token)
+	if err != nil {
+		return nil, err
+	}
+	c.CloudInterval = 0
+	c.LocalInterval = 0
+	return c, nil
+}
+
+func (a *App) probeOpenList(url string) (string, string, error) {
+	c, err := authClient(url, "")
+	if err != nil {
+		return "", "", err
+	}
+	c.Timeout = 10 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	info, err := c.PublicSettings(ctx)
+	if err != nil {
+		return "", "", err
+	}
+	ver := strings.TrimSpace(strings.SplitN(jsonx.Str(info, "version"), " (", 2)[0])
+	if ver == "" {
+		ver = "未知版本"
+	}
+	title := jsonx.Str(info, "site_title")
+	if title == "" {
+		title = "OpenList"
+	}
+	return title, ver, nil
+}
+
+func (a *App) validateToken(url, token string) (map[string]any, error) {
+	c, err := authClient(url, token)
+	if err != nil {
+		return nil, err
+	}
+	if a.timeoutSec > 0 {
+		c.Timeout = time.Duration(a.timeoutSec) * time.Second
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), c.Timeout)
+	defer cancel()
+	return c.Me(ctx)
+}
+
+func (a *App) exchangePassword(url, username, password, otp string) (string, error) {
+	c, err := authClient(url, "")
+	if err != nil {
+		return "", err
+	}
+	if a.timeoutSec > 0 {
+		c.Timeout = time.Duration(a.timeoutSec) * time.Second
+	}
+	if _, err := c.Login(context.Background(), username, password, otp); err != nil {
+		return "", err
+	}
+	return c.Token, nil
+}
+
+func (a *App) loginResult(r credential.Result) error {
+	return a.emit(r, func() {
+		a.printf("✓ 已登录：%s（%s）  模式 %s / 来源 %s\n", r.User, r.Role, r.Mode, r.Source)
+		if r.Saved {
+			a.printf("  令牌已保存到 %s\n", config.File())
+		} else {
+			a.printf("  凭据来自配置或环境变量，无需保存\n")
+		}
+	})
+}
+
+func (a *App) loginFailure(err error) error {
+	code := loginExitCode(err)
+	if a.jsonOut {
+		_ = output.DumpJSON(a.Out, credential.Result{Valid: false, Error: err.Error()})
+		return exitf(code, "")
+	}
+	return exitf(code, "✗ 登录失败：%v", err)
+}
+
+func loginExitCode(err error) int {
+	var ee *ExitError
+	if errors.As(err, &ee) {
+		return ee.Code
+	}
+	var ne *client.NetworkError
+	if errors.As(err, &ne) {
+		return 4
+	}
+	var ae *client.ApiError
+	if errors.As(err, &ae) {
+		return 3
+	}
+	var ce *config.ConfigError
+	if errors.As(err, &ce) {
+		return 2
+	}
+	return 1
 }
 
 // guideTokenPage 打印令牌页面地址；本地图形会话下顺手打开浏览器。
@@ -192,57 +315,6 @@ func (a *App) guideTokenPage(base string, noOpen bool) {
 		return
 	}
 	a.printf("          已在浏览器中打开\n")
-}
-
-// loginWithPassword 账号密码换令牌，适合脚本或忘记 token 时用。
-func (a *App) loginWithPassword(username, password, otp string) error {
-	cfg, err := config.Load()
-	if err != nil {
-		return err
-	}
-	url := NormalizeURL(a.flagURL)
-	if url == "" {
-		url = NormalizeURL(config.Str(cfg, "url"))
-	}
-	if url == "" {
-		return exitf(1, "请用 --url 指定地址，例如 http://127.0.0.1:5244")
-	}
-	if username == "" {
-		username = "admin"
-	}
-	if password == "" {
-		password, err = a.promptSecret(fmt.Sprintf("%s 的密码", username))
-		if err != nil {
-			return err
-		}
-	}
-
-	c, err := client.New(url, "")
-	if err != nil {
-		return exitf(1, "%v", err)
-	}
-	if a.timeoutSec > 0 {
-		c.Timeout = time.Duration(a.timeoutSec) * time.Second
-	}
-	ctx := context.Background()
-	if _, err := c.Login(ctx, username, password, otp); err != nil {
-		return err
-	}
-	me, err := c.Me(ctx)
-	if err != nil {
-		return err
-	}
-
-	cfg["url"] = url
-	cfg["token"] = c.Token
-	cfg["username"] = jsonx.Str(me, "username")
-	saved, err := config.Save(cfg)
-	if err != nil {
-		return err
-	}
-	a.printf("✓ 已登录：%s（%s）\n", jsonx.Str(me, "username"), roleOf(me))
-	a.printf("  令牌已保存到 %s\n", saved)
-	return nil
 }
 
 func (a *App) authLogoutCmd() *cobra.Command {
