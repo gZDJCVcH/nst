@@ -13,10 +13,10 @@ import (
 	"sort"
 	"strings"
 
-	"openlist-cli/internal/client"
-	"openlist-cli/internal/jsonx"
-	"openlist-cli/internal/output"
-	"openlist-cli/internal/pathx"
+	"nst/internal/client"
+	"nst/internal/jsonx"
+	"nst/internal/output"
+	"nst/internal/pathx"
 )
 
 // asAPIError 是 errors.As 的薄封装，便于在命令里分支处理。

@@ -1,18 +1,19 @@
 #!/bin/sh
-# openlist-cli 一键安装脚本
+# nst 一键安装脚本
 #
-#   curl -fsSL https://raw.githubusercontent.com/gZDJCVcH/openlist-cli/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/gZDJCVcH/nst/main/install.sh | sh
 #   curl -fsSL .../install.sh | sh -s -- -v v0.2.0
 #   curl -fsSL .../install.sh | sh -s -- -d ~/bin
 #
 # 可选环境变量：
-#   OPENLIST_CLI_DOWNLOAD_BASE  下载源（默认 https://github.com，可指向镜像）
+#   NST_DOWNLOAD_BASE           下载源（默认 https://github.com，可指向镜像）
+#   OPENLIST_CLI_DOWNLOAD_BASE  同上，旧名称继续兼容
 #   BIN_DIR                     安装目录
 set -eu
 
 gZDJCVcH="gZDJCVcH"
-REPO="openlist-cli"
-BIN="openlist-cli"
+REPO="nst"
+BIN="nst"
 
 VERSION="latest"
 BIN_DIR="${BIN_DIR:-}"
@@ -60,7 +61,7 @@ while [ $# -gt 0 ]; do
 	esac
 done
 
-BASE="${OPENLIST_CLI_DOWNLOAD_BASE:-https://github.com}"
+BASE="${NST_DOWNLOAD_BASE:-${OPENLIST_CLI_DOWNLOAD_BASE:-https://github.com}}"
 BASE="${BASE%/}"
 
 need() {
@@ -191,12 +192,15 @@ mkdir -p "$BIN_DIR"
 
 if [ -w "$BIN_DIR" ]; then
 	install -m 0755 "$TMP/$BIN" "$BIN_DIR/$BIN"
+	ln -sf "$BIN" "$BIN_DIR/openlist-cli"
 else
 	echo "需要写入 $BIN_DIR，尝试 sudo"
 	sudo install -m 0755 "$TMP/$BIN" "$BIN_DIR/$BIN"
+	sudo ln -sf "$BIN" "$BIN_DIR/openlist-cli"
 fi
 
 echo "✓ 已安装到 $BIN_DIR/$BIN"
+echo "  兼容命令：openlist-cli → $BIN（旧用法自动走 nst openlist）"
 "$BIN_DIR/$BIN" version || true
 case ":$PATH:" in
 *":$BIN_DIR:"*) ;;

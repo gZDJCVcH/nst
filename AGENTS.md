@@ -4,43 +4,45 @@
 
 ## 项目定位
 
-`openlist-cli` 是 [OpenList](https://github.com/OpenListTeam/OpenList) 的命令行客户端，Go 实现。
-服务端对应 OpenList v4.x，API 与 AList v3 兼容。
+`nst` 是 NAS 工具箱，Go 实现，单个静态二进制。`nst openlist` 是 [OpenList](https://github.com/OpenListTeam/OpenList) 的命令行客户端，服务端对应 OpenList v4.x，API 与 AList v3 兼容。
 
 对外依赖只有两个：`spf13/cobra`（命令树 + pflag）和 `golang.org/x/term`（密码输入、istty 判断）。**不要再引入第三方依赖**，这是刻意保持的约束。
 
 ## 目录与职责
 
 ```
-cmd/openlist-cli/main.go   只做 os.Exit 转换
-internal/cli/              命令定义与渲染
-  app.go                   App：IO、全局参数、退出码映射、newClient
-  root.go                  命令树注册 + 全局 flag
+cmd/nst/main.go        只做 os.Exit 转换；以 openlist-cli 名字调用时自动补 openlist 子命令
+internal/cli/          命令定义与渲染
+  app.go                App：IO、全局参数、退出码映射、newClient
+  root.go               命令树注册（顶层 version/upgrade/openlist + 全局 flag）、openlistCmd()
   auth.go browse.go transfer.go ops.go tasks.go admin.go verify.go version.go upgrade.go
-  helpers.go               本地文件枚举、sha1、脱敏、mkdirP
-  confighelp.go            配置读写薄封装
-internal/client/           HTTP 层
-  client.go                _request 等价物、鉴权、错误映射、限流、目录缓存
-  transfer.go              上传/下载（流式 + 进度）
-  util.go                  URL 编码、挂载点排序
-internal/pathx/            local: / remote: 前缀解析
-internal/config/           ~/.config/openlist-cli/config.json 读写（0600 原子写）
-internal/output/           尺寸/时间格式化、列表渲染、进度、脱敏、确认
-internal/jsonx/            任意 JSON 的宽松读取（json.Number，不丢精度）
+  helpers.go            本地文件枚举、sha1、脱敏、mkdirP
+  confighelp.go         配置读写薄封装
+internal/client/        HTTP 层
+  client.go             _request 等价物、鉴权、错误映射、限流、目录缓存
+  transfer.go           上传/下载（流式 + 进度）
+  util.go               URL 编码、挂载点排序
+internal/pathx/         local: / remote: 前缀解析
+internal/config/        ~/.config/openlist-cli/config.json 读写（0600 原子写）
+internal/output/        尺寸/时间格式化、列表渲染、进度、脱敏、确认
+internal/jsonx/         任意 JSON 的宽松读取（json.Number，不丢精度）
+skills/nst/             Agent Skill：SKILL.md 索引 + references/<子命令>/ 子文档
+scripts/check-skill.sh  Skill 结构校验，ci.yml 会跑
 ```
 
-新增功能通常**不动** `pathx` / `output`，只改 `client`（加接口封装）和 `cli`（加命令 + 参数 + 在 `root.go` 注册）。
+新增 OpenList 功能通常**不动** `pathx` / `output`，只改 `client`（加接口封装）和 `cli`（加命令 + 参数 + 在 `root.go` 的 `openlistCmd()` 注册）。新增其它服务的命令时，在 `buildRoot()` 注册新的父命令，源码按包隔离。
 
 ## 命令
 
 ```bash
-go build -o dist/openlist-cli ./cmd/openlist-cli
-./dist/openlist-cli --help
-./dist/openlist-cli <命令> -h
+go build -o dist/nst ./cmd/nst
+./dist/nst --help
+./dist/nst openlist <命令> -h
 
 go test ./...        # 全部用例，离线，不碰网络
 go vet ./...
 gofmt -l .           # 应为空
+sh scripts/check-skill.sh
 ```
 
 `make cross` 可一次产出 6 个平台。
@@ -106,8 +108,8 @@ gofmt -l .           # 应为空
 
 ```bash
 go test ./...          # 纯逻辑 + httptest 假服务端，不碰真实网络
-./dist/openlist-cli mounts                       # 连通性与权限
-./dist/openlist-cli --url <地址> --token <token> whoami
+./dist/nst openlist mounts                       # 连通性与权限
+./dist/nst openlist --url <地址> --token <token> whoami
 ```
 
 **涉及写操作时，测试数据必须建在自己的目录下**（例如 `/temp/_selftest_xxx`），只对该目录增删改，结束清理干净，绝不碰用户既有数据。
@@ -115,16 +117,24 @@ go test ./...          # 纯逻辑 + httptest 假服务端，不碰真实网络
 `verify` 是只读的，可以用真实数据跑：
 
 ```bash
-./dist/openlist-cli verify "local:<目录>" "remote:/<目录>"
+./dist/nst openlist verify "local:<目录>" "remote:/<目录>"
 ```
 
 ## 加一个命令要改哪几处
 
 1. `cli/xxx.go` 里写 `func (a *App) xxxCmd() *cobra.Command`，先解析路径再 `a.newClient(true)`（顺序反了会先报"未登录"、掩盖路径错误）
-2. `root.go` 的 `AddCommand(...)` 里注册
+2. `root.go` 的 `openlistCmd().AddCommand(...)` 里注册
 3. 在 `internal/cli/*_test.go` 补用例（用 `runCLI` + `httptest`，不要连真实服务）
 4. 有写操作就调 `c.Invalidate()`
 5. 更新 `README.md` 的命令表
+6. 涉及新参数或触发场景时，更新 `skills/nst/references/openlist/` 下对应文档
+
+## Skill 维护约定
+
+- `skills/nst/SKILL.md` 只写索引与通用约定，不堆具体命令细节
+- 子文档放在 `references/<子命令>/`，文件引用从 skill 根起保持一层深
+- `SKILL.md` 的 `name` 必须与目录名一致
+- 新增服务时在 `references/` 下建同名目录，并在主文档索引里补一行
 
 ## 代码风格
 
@@ -139,4 +149,5 @@ go test ./...          # 纯逻辑 + httptest 假服务端，不碰真实网络
 - 绕过 `client` 直接发 HTTP 请求
 - 用 `exec.Command` 调外部命令完成本可以用 API 做的事
 - 在用户既有目录上做写操作测试
-- 改 Release 资产命名（`openlist-cli_<ver>_<os>_<arch>`），`install.sh` 和 `upgrade` 都依赖它
+- 改 Release 资产命名（`nst_<ver>_<os>_<arch>`），`install.sh` 和 `upgrade` 都依赖它
+- 在 `skills/` 下再嵌套 `SKILL.md` 当作子 skill

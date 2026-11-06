@@ -5,8 +5,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"openlist-cli/internal/client"
-	"openlist-cli/internal/jsonx"
+	"nst/internal/client"
+	"nst/internal/jsonx"
 )
 
 // taskStates 是服务端任务状态码。

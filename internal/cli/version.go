@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"openlist-cli/internal/buildinfo"
+	"nst/internal/buildinfo"
 )
 
 func (a *App) versionCmd() *cobra.Command {
@@ -14,7 +14,7 @@ func (a *App) versionCmd() *cobra.Command {
 		Short: "显示版本",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			a.println(fmt.Sprintf("openlist-cli %s", buildinfo.String()))
+			a.println(fmt.Sprintf("nst %s", buildinfo.String()))
 			return nil
 		},
 	}

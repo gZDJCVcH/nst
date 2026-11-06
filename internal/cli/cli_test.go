@@ -13,8 +13,8 @@ import (
 	"strings"
 	"testing"
 
-	"openlist-cli/internal/client"
-	"openlist-cli/internal/jsonx"
+	"nst/internal/client"
+	"nst/internal/jsonx"
 )
 
 func newClientForTest(base string) (*client.Client, error) {
@@ -30,6 +30,10 @@ func newClientForTest(base string) (*client.Client, error) {
 // runCLI 用假 IO 跑一条命令，返回 stdout / stderr / 退出码。
 func runCLI(t *testing.T, args ...string) (string, string, int) {
 	t.Helper()
+	// 业务命令都在 nst openlist 下；--help 用来检查顶层帮助，保持原样。
+	if len(args) > 0 && args[0] != "--help" && args[0] != "-h" {
+		args = append([]string{"openlist"}, args...)
+	}
 	var out, errBuf bytes.Buffer
 	app := New()
 	app.Out = &out
@@ -375,6 +379,18 @@ func TestCommandTree(t *testing.T) {
 	app := New()
 	root := app.buildRoot()
 
+	for _, name := range []string{"openlist", "version", "upgrade"} {
+		cmd, _, err := root.Find([]string{name})
+		if err != nil || cmd.Name() != name {
+			t.Errorf("顶层缺少命令 %q：%v / %v", name, cmd.Name(), err)
+		}
+	}
+
+	openlist, _, err := root.Find([]string{"openlist"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	want := []string{
 		"auth", "list", "stat", "tree", "search", "read", "link",
 		"upload", "download", "remove", "move", "copy", "rename", "mkdir",
@@ -382,12 +398,12 @@ func TestCommandTree(t *testing.T) {
 		"driver", "config", "version", "upgrade",
 	}
 	found := map[string]bool{}
-	for _, c := range root.Commands() {
+	for _, c := range openlist.Commands() {
 		found[c.Name()] = true
 	}
 	for _, name := range want {
 		if !found[name] {
-			t.Errorf("缺少命令 %q", name)
+			t.Errorf("openlist 缺少命令 %q", name)
 		}
 	}
 
@@ -396,7 +412,7 @@ func TestCommandTree(t *testing.T) {
 		"rm": "remove", "mv": "move", "cp": "copy",
 	}
 	for alias, target := range aliases {
-		cmd, _, err := root.Find([]string{alias})
+		cmd, _, err := openlist.Find([]string{alias})
 		if err != nil || cmd.Name() != target {
 			t.Errorf("别名 %q 应指向 %q，实际 %v / %v", alias, target, cmd.Name(), err)
 		}

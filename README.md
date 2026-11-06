@@ -1,24 +1,30 @@
-# openlist-cli
+# nst
 
-[OpenList](https://github.com/OpenListTeam/OpenList) 的命令行客户端，Go 实现，**单个静态二进制、零运行时依赖**。
+NAS 工具箱，Go 实现，**单个静态二进制、零运行时依赖**。
 
-服务端对应 OpenList v4.x（实测 v4.2.9），API 与 AList v3 兼容。
+| 子命令 | 说明 |
+|---|---|
+| `nst openlist ...` | OpenList 文件与任务管理 |
+| `nst version` | 显示版本 |
+| `nst upgrade` | 检查并升级到最新版本 |
+
+OpenList 服务端对应 v4.x（实测 v4.2.9），API 与 AList v3 兼容。
 
 ## 安装
 
 ```bash
 # 一键安装（推荐）：默认装到 /usr/local/bin，不可写则 ~/.local/bin
-curl -fsSL https://raw.githubusercontent.com/gZDJCVcH/openlist-cli/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/gZDJCVcH/nst/main/install.sh | sh
 
 # 指定版本 / 目录
 curl -fsSL .../install.sh | sh -s -- -v v0.2.0 -d ~/bin
 
 # 国内网络可换下载源
-OPENLIST_CLI_DOWNLOAD_BASE=https://your-mirror.example.com/gh \
+NST_DOWNLOAD_BASE=https://your-mirror.example.com/gh \
   curl -fsSL .../install.sh | sh
 
 # raw.githubusercontent 连不上时，改用 jsDelivr 取脚本（内容相同）
-curl -fsSL https://cdn.jsdelivr.net/gh/gZDJCVcH/openlist-cli@main/install.sh | sh
+curl -fsSL https://cdn.jsdelivr.net/gh/gZDJCVcH/nst@main/install.sh | sh
 ```
 
 手动下载：
@@ -26,40 +32,46 @@ curl -fsSL https://cdn.jsdelivr.net/gh/gZDJCVcH/openlist-cli@main/install.sh | s
 ```bash
 # 1) 拿最新 tag（跟随一次 302，不消耗 API 配额）
 tag=$(curl -fsSLI -o /dev/null -w '%{url_effective}' \
-      https://github.com/gZDJCVcH/openlist-cli/releases/latest | sed 's#.*/##')
+      https://github.com/gZDJCVcH/nst/releases/latest | sed 's#.*/##')
 
 # 2) 下载对应平台（linux_amd64 / linux_arm64 / darwin_arm64 ...）
-curl -fsSLO "https://github.com/gZDJCVcH/openlist-cli/releases/download/$tag/openlist-cli_${tag#v}_linux_amd64.tar.gz"
-tar -xzf openlist-cli_*.tar.gz && sudo install -m 0755 openlist-cli /usr/local/bin/
+curl -fsSLO "https://github.com/gZDJCVcH/nst/releases/download/$tag/nst_${tag#v}_linux_amd64.tar.gz"
+tar -xzf nst_*.tar.gz && sudo install -m 0755 nst /usr/local/bin/
 
 # 或用 gh
-gh release download "$tag" -R gZDJCVcH/openlist-cli -p '*linux_amd64*'
+gh release download "$tag" -R gZDJCVcH/nst -p '*linux_amd64*'
 ```
 
-有 Go 工具链时也可以 `go install github.com/gZDJCVcH/openlist-cli/cmd/openlist-cli@latest`。
+有 Go 工具链时也可以从源码安装：`make install`（装到 `$GOBIN`，默认 `$GOPATH/bin`）。
 
 自升级：
 
 ```bash
-openlist-cli upgrade --check   # 只看有没有新版本
-openlist-cli upgrade           # 下载校验后原地替换
+nst upgrade --check   # 只看有没有新版本
+nst upgrade           # 下载校验后原地替换
 ```
+
+安装脚本会在同一目录创建 `openlist-cli → nst` 软链；以这个名字调用时自动等价于 `nst openlist ...`，例如 `openlist-cli list remote:/115`。
+
+## 本地配置
+
+配置固定为 `$XDG_CONFIG_HOME/openlist-cli/config.json`，缺省 `~/.config/openlist-cli/config.json`，文件权限 0600。地址与令牌也可用 `OPENLIST_URL` / `OPENLIST_TOKEN` 覆盖。
 
 ## 快速开始
 
 ```bash
 # 登录：问地址 → 探活 → 给出令牌页面（本地会话会顺手打开浏览器）→ 粘贴 token → 校验通过才保存
-openlist-cli auth login --url http://192.168.1.10:5244
+nst openlist auth login --url http://192.168.1.10:5244
 
 # 或用账号密码换 token
-openlist-cli auth login --url http://192.168.1.10:5244 -u admin --password
+nst openlist auth login --url http://192.168.1.10:5244 -u admin --password
 
 # 日常
-openlist-cli list remote:/115
-openlist-cli stat remote:/115/电影/x.mkv
-openlist-cli download remote:/115/x.mkv local:./x.mkv
-openlist-cli upload local:./a.cue remote:/115/
-openlist-cli verify local:./dir remote:/115/dir   # 按大小 + sha1 比对，不下载
+nst openlist list remote:/115
+nst openlist stat remote:/115/电影/x.mkv
+nst openlist download remote:/115/x.mkv local:./x.mkv
+nst openlist upload local:./a.cue remote:/115/
+nst openlist verify local:./dir remote:/115/dir   # 按大小 + sha1 比对，不下载
 ```
 
 ### 路径必须带前缀
@@ -74,6 +86,8 @@ remote:/<远端路径>    例如 remote:/115/音乐
 缺前缀直接报错并给出两种正确写法。
 
 ## 命令
+
+以下命令均位于 `nst openlist` 下：
 
 | 命令 | 别名 | 说明 |
 |---|---|---|
@@ -100,7 +114,6 @@ remote:/<远端路径>    例如 remote:/115/音乐
 | `verify <local> <remote>` | | 按大小 + sha1 比对，不下载文件本体 |
 | `config show/path/set` | | 本地配置 |
 | `version` / `upgrade` | | 版本 / 自升级 |
-| `completion <shell>` | | 生成补全脚本 |
 
 ### 全局参数
 
@@ -126,10 +139,32 @@ remote:/<远端路径>    例如 remote:/115/音乐
 | 4 | 网络错误 |
 | 130 | 被 Ctrl-C 中断 |
 
+## Agent Skill
+
+仓库自带一个 Agent Skill，主文档只做索引，各子命令的详细文档按需加载：
+
+```
+skills/nst/
+├── SKILL.md
+└── references/
+    └── openlist/
+        ├── README.md
+        ├── commands.md
+        └── examples.md
+```
+
+```bash
+# GitHub CLI（v2.90+）
+gh skill install gZDJCVcH/nst nst --scope user
+
+# WorkBuddy 用户级
+cp -r skills/nst ~/.workbuddy/skills/nst
+```
+
 ## 开发
 
 ```bash
-make build     # 编译到 dist/openlist-cli
+make build     # 编译到 dist/nst
 make test      # 全部单测（离线，不碰网络）
 make fmt vet
 make cross     # 手工交叉编译 6 个平台
@@ -142,7 +177,7 @@ make cross     # 手工交叉编译 6 个平台
 纯 Go、无 cgo，所以一条命令就能产出静态二进制：
 
 ```bash
-CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "-s -w" ./cmd/openlist-cli
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "-s -w" ./cmd/nst
 ```
 
 ### 发布
@@ -151,7 +186,7 @@ CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "-s -w" ./cmd/
 
 | workflow | 触发 | 做什么 |
 |---|---|---|
-| `ci.yml` | push / PR | 只跑 gofmt、vet、test、build（3 个 OS），不产出任何产物 |
+| `ci.yml` | push / PR | gofmt、vet、test、build（3 个 OS）、Skill 结构校验，不产出任何产物 |
 | `snapshot.yml` | 手动（workflow_dispatch） | 打一次快照包，产物只作 Actions artifact，需登录下载、默认留 7 天 |
 | `release.yml` | 推 tag `v*` | 跑 `goreleaser release`，把产物挂到 GitHub Release |
 
@@ -159,8 +194,8 @@ CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "-s -w" ./cmd/
 
 1. 仓库坐标已固定在 `install.sh`、`.goreleaser.yaml`、`internal/cli/upgrade.go` 三处，
    换账号/组织时一起改（`grep -rl gZDJCVcH --exclude-dir=.git .`）。
-2. `git tag v0.1.0 && git push origin v0.1.0`
-3. Actions 跑 `goreleaser`，产出 `openlist-cli_<ver>_<os>_<arch>.tar.gz`（Windows 为 zip）+ `checksums.txt`，挂在 Release 上。
+2. `git tag v0.1.0 && git push origin v0.1.0`（本地用 `./release.sh v0.1.0` 触发）
+3. Actions 跑 `goreleaser`，产出 `nst_<ver>_<os>_<arch>.tar.gz`（Windows 为 zip）+ `checksums.txt`，挂在 Release 上。
 4. `install.sh` 与 `upgrade` 都从 Release 下载，资产命名必须保持 `<bin>_<version>_<os>_<arch>`，不要改。
 
 > 只想验证打包是否正常、又不想发版时，手动跑一次 `snapshot` workflow 即可。

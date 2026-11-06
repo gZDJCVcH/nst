@@ -9,8 +9,8 @@ import (
 	"path"
 	"time"
 
-	"openlist-cli/internal/jsonx"
-	"openlist-cli/internal/pathx"
+	"nst/internal/jsonx"
+	"nst/internal/pathx"
 )
 
 // ProgressFunc 汇报传输进度；total 未知时为 0。

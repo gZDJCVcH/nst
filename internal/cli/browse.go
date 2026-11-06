@@ -8,9 +8,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"openlist-cli/internal/jsonx"
-	"openlist-cli/internal/output"
-	"openlist-cli/internal/pathx"
+	"nst/internal/jsonx"
+	"nst/internal/output"
+	"nst/internal/pathx"
 )
 
 type listPayload struct {
@@ -253,7 +253,7 @@ func (a *App) readCmd() *cobra.Command {
 					output.HumanSize(size), output.HumanSize(maxBytes))
 			}
 
-			tmp, err := os.CreateTemp("", "openlist-cli-read-*")
+			tmp, err := os.CreateTemp("", "nst-read-*")
 			if err != nil {
 				return err
 			}

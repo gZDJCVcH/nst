@@ -13,8 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"openlist-cli/internal/jsonx"
-	"openlist-cli/internal/pathx"
+	"nst/internal/jsonx"
+	"nst/internal/pathx"
 )
 
 // 默认参数。
@@ -54,7 +54,7 @@ func (e *ApiError) Render() string {
 	if e.Code != nil {
 		switch *e.Code {
 		case 401:
-			hint = "\n  令牌无效或已过期，重新登录：openlist-cli auth login --url <地址>"
+			hint = "\n  令牌无效或已过期，重新登录：nst openlist auth login --url <地址>"
 		case 403:
 			hint = "\n  权限不足（该操作需要管理员，或存储为只读）"
 		case 404:
@@ -183,7 +183,7 @@ type reqOptions struct {
 
 func (c *Client) headers(extra map[string]string) map[string]string {
 	h := map[string]string{
-		"User-Agent": "openlist-cli/0.1",
+		"User-Agent": "nst/0.1",
 		"Accept":     "application/json",
 	}
 	if c.Token != "" {

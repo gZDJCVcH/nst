@@ -7,9 +7,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"openlist-cli/internal/client"
-	"openlist-cli/internal/jsonx"
-	"openlist-cli/internal/pathx"
+	"nst/internal/client"
+	"nst/internal/jsonx"
+	"nst/internal/pathx"
 )
 
 // resolveDst 判断 move/copy 的目标是目录还是完整路径。

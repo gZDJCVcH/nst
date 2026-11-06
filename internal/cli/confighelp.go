@@ -1,6 +1,6 @@
 package cli
 
-import "openlist-cli/internal/config"
+import "nst/internal/config"
 
 func loadConfig() (map[string]any, error) { return config.Load() }
 

@@ -9,10 +9,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"openlist-cli/internal/client"
-	"openlist-cli/internal/jsonx"
-	"openlist-cli/internal/output"
-	"openlist-cli/internal/pathx"
+	"nst/internal/client"
+	"nst/internal/jsonx"
+	"nst/internal/output"
+	"nst/internal/pathx"
 )
 
 func (a *App) uploadCmd() *cobra.Command {

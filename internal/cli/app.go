@@ -15,10 +15,10 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 
-	"openlist-cli/internal/client"
-	"openlist-cli/internal/config"
-	"openlist-cli/internal/output"
-	"openlist-cli/internal/pathx"
+	"nst/internal/client"
+	"nst/internal/config"
+	"nst/internal/output"
+	"nst/internal/pathx"
 )
 
 // ExitError 携带退出码与要打印的消息，由 Execute 统一处理。
@@ -156,10 +156,10 @@ func (a *App) newClient(needToken bool) (*client.Client, error) {
 
 	if url == "" {
 		return nil, exitf(1, "缺少服务地址。先登录一次：\n"+
-			"  openlist-cli auth login --url http://你的地址:5244 -u admin")
+			"  nst openlist auth login --url http://你的地址:5244 -u admin")
 	}
 	if needToken && token == "" {
-		return nil, exitf(1, "尚未登录。执行：openlist-cli auth login --url <地址>")
+		return nil, exitf(1, "尚未登录。执行：nst openlist auth login --url <地址>")
 	}
 
 	c, err := client.New(NormalizeURL(url), token)

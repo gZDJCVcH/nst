@@ -19,14 +19,17 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"openlist-cli/internal/buildinfo"
+	"nst/internal/buildinfo"
 )
 
 // defaultRepo 是发布仓库（与 install.sh、.goreleaser.yaml 保持一致）。
-// 也可以用环境变量 OPENLIST_CLI_REPO=owner/repo 覆盖。
-const defaultRepo = "gZDJCVcH/openlist-cli"
+// 可以用 NST_REPO=owner/repo 覆盖；OPENLIST_CLI_REPO 作为旧名继续兼容。
+const defaultRepo = "gZDJCVcH/nst"
 
 func repoSlug() string {
+	if v := os.Getenv("NST_REPO"); v != "" {
+		return v
+	}
 	if v := os.Getenv("OPENLIST_CLI_REPO"); v != "" {
 		return v
 	}
@@ -34,8 +37,10 @@ func repoSlug() string {
 }
 
 func downloadBase() string {
-	if v := os.Getenv("OPENLIST_CLI_DOWNLOAD_BASE"); v != "" {
-		return strings.TrimRight(v, "/")
+	for _, key := range []string{"NST_DOWNLOAD_BASE", "OPENLIST_CLI_DOWNLOAD_BASE"} {
+		if v := os.Getenv(key); v != "" {
+			return strings.TrimRight(v, "/")
+		}
 	}
 	return "https://github.com"
 }
@@ -51,8 +56,8 @@ func (a *App) upgradeCmd() *cobra.Command {
 		Use:   "upgrade",
 		Short: "检查并升级到最新版本",
 		Long: "默认检查最新版本并原地替换当前可执行文件。\n" +
-			"只想看看有没有新版本：openlist-cli upgrade --check\n" +
-			"国内网络可先设置 OPENLIST_CLI_DOWNLOAD_BASE 指向镜像。",
+			"只想看看有没有新版本：nst upgrade --check\n" +
+			"国内网络可先设置 NST_DOWNLOAD_BASE 指向镜像。",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if showVersion {
@@ -77,7 +82,7 @@ func (a *App) upgradeCmd() *cobra.Command {
 				return nil
 			}
 			if check {
-				a.printf("有新版本 %s（当前 %s）\n升级：openlist-cli upgrade\n", tag, current)
+				a.printf("有新版本 %s（当前 %s）\n升级：nst upgrade\n", tag, current)
 				return nil
 			}
 
@@ -149,7 +154,7 @@ func assetName(tag string) (string, error) {
 	if runtime.GOOS == "windows" {
 		ext = "zip"
 	}
-	return fmt.Sprintf("openlist-cli_%s_%s_%s.%s",
+	return fmt.Sprintf("nst_%s_%s_%s.%s",
 		strings.TrimPrefix(tag, "v"), runtime.GOOS, arch, ext), nil
 }
 
@@ -160,7 +165,7 @@ func applyUpgrade(ctx context.Context, tag string, progressOut io.Writer) error 
 	}
 	base := fmt.Sprintf("%s/%s/releases/download/%s", downloadBase(), repoSlug(), tag)
 
-	tmpDir, err := os.MkdirTemp("", "openlist-cli-upgrade-*")
+	tmpDir, err := os.MkdirTemp("", "nst-upgrade-*")
 	if err != nil {
 		return err
 	}
@@ -179,7 +184,7 @@ func applyUpgrade(ctx context.Context, tag string, progressOut io.Writer) error 
 		return err
 	}
 
-	binPath := filepath.Join(tmpDir, "openlist-cli")
+	binPath := filepath.Join(tmpDir, "nst")
 	if runtime.GOOS == "windows" {
 		binPath += ".exe"
 	}
@@ -285,7 +290,7 @@ func extractFromTarGz(archivePath, dest string) error {
 		}
 		return writeExecutable(dest, tr)
 	}
-	return errors.New("压缩包里没找到 openlist-cli 可执行文件")
+	return errors.New("压缩包里没找到 nst 可执行文件")
 }
 
 func extractFromZip(archivePath, dest string) error {
@@ -305,12 +310,12 @@ func extractFromZip(archivePath, dest string) error {
 		defer rc.Close()
 		return writeExecutable(dest, rc)
 	}
-	return errors.New("压缩包里没找到 openlist-cli 可执行文件")
+	return errors.New("压缩包里没找到 nst 可执行文件")
 }
 
 func isTargetBinary(name string) bool {
 	base := filepath.Base(name)
-	return base == "openlist-cli" || base == "openlist-cli.exe"
+	return base == "nst" || base == "nst.exe"
 }
 
 func writeExecutable(dest string, r io.Reader) error {

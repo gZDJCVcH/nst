@@ -1,24 +1,24 @@
 version: 2
 
-project_name: openlist-cli
+project_name: nst
 
 before:
   hooks:
     - go mod tidy
 
 builds:
-  - id: openlist-cli
-    main: ./cmd/openlist-cli
-    binary: openlist-cli
+  - id: nst
+    main: ./cmd/nst
+    binary: nst
     env:
       - CGO_ENABLED=0
     flags:
       - -trimpath
     ldflags:
       - -s -w
-      - -X openlist-cli/internal/buildinfo.Version={{ .Version }}
-      - -X openlist-cli/internal/buildinfo.Commit={{ .ShortCommit }}
-      - -X openlist-cli/internal/buildinfo.Date={{ .CommitDate }}
+      - -X nst/internal/buildinfo.Version={{ .Version }}
+      - -X nst/internal/buildinfo.Commit={{ .ShortCommit }}
+      - -X nst/internal/buildinfo.Date={{ .CommitDate }}
     goos:
       - linux
       - darwin
@@ -68,7 +68,7 @@ release:
   footer: |
     **安装**
     ```
-    curl -fsSL https://raw.githubusercontent.com/gZDJCVcH/openlist-cli/main/install.sh | sh
+    curl -fsSL https://raw.githubusercontent.com/gZDJCVcH/nst/main/install.sh | sh
     ```
 
 # 需要 Homebrew / Scoop / deb-rpm 时再打开，注意把 gZDJCVcH 换成实际账号。
@@ -76,7 +76,7 @@ release:
 #   - repository:
 #       owner: gZDJCVcH
 #       name: homebrew-tap
-#     homepage: https://github.com/gZDJCVcH/openlist-cli
+#     homepage: https://github.com/gZDJCVcH/nst
 #     description: OpenList 命令行客户端
 #     license: MIT
 #
@@ -85,7 +85,7 @@ release:
 #       owner: gZDJCVcH
 #       name: scoop-bucket
 #     directory: bucket
-#     homepage: https://github.com/gZDJCVcH/openlist-cli
+#     homepage: https://github.com/gZDJCVcH/nst
 #     description: OpenList 命令行客户端
 #     license: MIT
 #

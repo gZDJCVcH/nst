@@ -8,8 +8,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"openlist-cli/internal/jsonx"
-	"openlist-cli/internal/output"
+	"nst/internal/jsonx"
+	"nst/internal/output"
 )
 
 var storageFieldOrder = []string{

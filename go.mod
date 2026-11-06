@@ -1,4 +1,4 @@
-module openlist-cli
+module nst
 
 go 1.27.3
 

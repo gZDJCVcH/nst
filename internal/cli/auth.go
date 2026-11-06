@@ -8,9 +8,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"openlist-cli/internal/client"
-	"openlist-cli/internal/config"
-	"openlist-cli/internal/jsonx"
+	"nst/internal/client"
+	"nst/internal/config"
+	"nst/internal/jsonx"
 )
 
 const maxTokenTries = 3

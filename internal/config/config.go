@@ -10,7 +10,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"openlist-cli/internal/jsonx"
+	"nst/internal/jsonx"
 )
 
 const (

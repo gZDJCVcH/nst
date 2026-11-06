@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"openlist-cli/internal/jsonx"
+	"nst/internal/jsonx"
 )
 
 // HumanSize 把字节数格式化成 1.5KB 这种形式。
