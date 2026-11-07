@@ -1,4 +1,4 @@
-package client
+package openlist
 
 import (
 	"context"

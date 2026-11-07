@@ -1,4 +1,4 @@
-package cli
+package openlist
 
 import (
 	"context"
@@ -7,13 +7,12 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"nst/internal/client"
 	"nst/internal/jsonx"
 	"nst/internal/pathx"
 )
 
 // resolveDst 判断 move/copy 的目标是目录还是完整路径。
-func (a *App) resolveDst(ctx context.Context, c *client.Client, src, dstRaw string) (string, error) {
+func (a *CLI) resolveDst(ctx context.Context, c *Client, src, dstRaw string) (string, error) {
 	dstPath, err := pathx.Remote(dstRaw)
 	if err != nil {
 		return "", err
@@ -31,7 +30,7 @@ func (a *App) resolveDst(ctx context.Context, c *client.Client, src, dstRaw stri
 	return dstPath, nil
 }
 
-func (a *App) mkdirCmd() *cobra.Command {
+func (a *CLI) mkdirCmd() *cobra.Command {
 	var parents bool
 	cmd := &cobra.Command{
 		Use:   "mkdir <remote:路径>",
@@ -57,7 +56,7 @@ func (a *App) mkdirCmd() *cobra.Command {
 				}
 				c.Invalidate(target)
 			}
-			a.printf("✓ %s\n", target)
+			a.Printf("✓ %s\n", target)
 			return nil
 		},
 	}
@@ -65,7 +64,7 @@ func (a *App) mkdirCmd() *cobra.Command {
 	return cmd
 }
 
-func (a *App) moveCmd() *cobra.Command {
+func (a *CLI) moveCmd() *cobra.Command {
 	var noOverwrite bool
 	cmd := &cobra.Command{
 		Use:     "move <remote:源> <remote:目标>",
@@ -91,7 +90,7 @@ func (a *App) moveCmd() *cobra.Command {
 			dstParent, dstName := pathx.SplitRemote(dst)
 
 			if srcParent == dstParent && srcName == dstName {
-				a.println("源与目标相同，什么都没做")
+				a.Println("源与目标相同，什么都没做")
 				return nil
 			}
 
@@ -103,7 +102,7 @@ func (a *App) moveCmd() *cobra.Command {
 					return err
 				}
 			}
-			a.printf("✓ %s → %s\n", src, dst)
+			a.Printf("✓ %s → %s\n", src, dst)
 			return nil
 		},
 	}
@@ -111,7 +110,7 @@ func (a *App) moveCmd() *cobra.Command {
 	return cmd
 }
 
-func (a *App) copyCmd() *cobra.Command {
+func (a *CLI) copyCmd() *cobra.Command {
 	var noOverwrite bool
 	cmd := &cobra.Command{
 		Use:     "copy <remote:源> <remote:目标>",
@@ -137,7 +136,7 @@ func (a *App) copyCmd() *cobra.Command {
 			if err := c.Copy(ctx, src, dstParent, !noOverwrite); err != nil {
 				return err
 			}
-			a.printf("✓ %s → %s\n", src, dst)
+			a.Printf("✓ %s → %s\n", src, dst)
 			return nil
 		},
 	}
@@ -145,7 +144,7 @@ func (a *App) copyCmd() *cobra.Command {
 	return cmd
 }
 
-func (a *App) renameCmd() *cobra.Command {
+func (a *CLI) renameCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "rename <remote:路径> <新名字>",
 		Short: "重命名",
@@ -164,7 +163,7 @@ func (a *App) renameCmd() *cobra.Command {
 				return err
 			}
 			parent, _ := pathx.SplitRemote(src)
-			a.printf("✓ %s → %s\n", src, pathx.JoinRemote(parent, args[1]))
+			a.Printf("✓ %s → %s\n", src, pathx.JoinRemote(parent, args[1]))
 			return nil
 		},
 	}

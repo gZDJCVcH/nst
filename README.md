@@ -55,7 +55,7 @@ nst upgrade           # 下载校验后原地替换
 
 ## 本地配置
 
-配置固定为 `$XDG_CONFIG_HOME/openlist-cli/config.json`，缺省 `~/.config/openlist-cli/config.json`，文件权限 0600。地址与令牌也可用 `OPENLIST_URL` / `OPENLIST_TOKEN` 覆盖。
+OpenList 的配置固定为 `$XDG_CONFIG_HOME/openlist-cli/config.json`，缺省 `~/.config/openlist-cli/config.json`，文件权限 0600；其它服务使用 `~/.config/nst/<服务>/config.json`。OpenList 的地址与令牌也可用 `OPENLIST_URL` / `OPENLIST_TOKEN` 覆盖。
 
 ## 快速开始
 
@@ -191,6 +191,10 @@ make cross     # 手工交叉编译 6 个平台
 ```
 
 只需要 Go（1.23+），无其他外部依赖。
+
+### 目录结构
+
+`internal/app`、`apperr`、`apierr`、`auth`、`config` 是平台层；具体能力放在 `internal/service/<服务>/`，服务之间不互相 import。`internal/cli` 只负责装配命令树。
 
 ### 交叉编译
 

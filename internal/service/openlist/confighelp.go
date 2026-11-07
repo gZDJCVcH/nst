@@ -1,16 +1,16 @@
-package cli
+package openlist
 
 import "nst/internal/config"
 
-func loadConfig() (map[string]any, error) { return config.Load() }
+func loadConfig() (map[string]any, error) { return store.Load() }
 
-func saveConfig(cfg map[string]any) (string, error) { return config.Save(cfg) }
+func saveConfig(cfg map[string]any) (string, error) { return store.Save(cfg) }
 
-func configFile() string { return config.File() }
+func configFile() string { return store.File() }
 
 // loadConfigMasked 读配置并把令牌打码，供 config show 使用。
 func loadConfigMasked() (map[string]any, error) {
-	cfg, err := config.Load()
+	cfg, err := store.Load()
 	if err != nil {
 		return nil, err
 	}

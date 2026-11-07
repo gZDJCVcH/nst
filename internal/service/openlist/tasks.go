@@ -1,11 +1,12 @@
-package cli
+package openlist
 
 import (
 	"fmt"
 
 	"github.com/spf13/cobra"
 
-	"nst/internal/client"
+	"nst/internal/apierr"
+	"nst/internal/apperr"
 	"nst/internal/jsonx"
 )
 
@@ -20,7 +21,7 @@ type taskRow struct {
 	Item map[string]any
 }
 
-func (a *App) tasksCmd() *cobra.Command {
+func (a *CLI) tasksCmd() *cobra.Command {
 	var (
 		types     []string
 		done      bool
@@ -40,25 +41,25 @@ func (a *App) tasksCmd() *cobra.Command {
 
 			selected := types
 			if len(selected) == 0 {
-				selected = client.TaskTypes
+				selected = TaskTypes
 			}
 
 			if clear {
 				cleared := 0
 				for _, one := range selected {
 					if err := c.TaskClear(ctx, one, succeeded); err != nil {
-						var apiErr *client.ApiError
+						var apiErr *apierr.ApiError
 						if asAPIError(err, &apiErr) {
-							a.errorf("· %s: %s\n", one, apiErr.Message)
+							a.Errorf("· %s: %s\n", one, apiErr.Message)
 							continue
 						}
 						return err
 					}
-					a.printf("✓ 已清理 %s 的已完成任务\n", one)
+					a.Printf("✓ 已清理 %s 的已完成任务\n", one)
 					cleared++
 				}
 				if cleared == 0 {
-					return exitf(1, "")
+					return apperr.Exitf(1, "")
 				}
 				return nil
 			}
@@ -67,9 +68,9 @@ func (a *App) tasksCmd() *cobra.Command {
 			for _, one := range selected {
 				items, err := c.TaskList(ctx, one, done)
 				if err != nil {
-					var apiErr *client.ApiError
+					var apiErr *apierr.ApiError
 					if asAPIError(err, &apiErr) {
-						a.errorf("· %s: %s\n", one, apiErr.Message)
+						a.Errorf("· %s: %s\n", one, apiErr.Message)
 						continue
 					}
 					return err
@@ -90,9 +91,9 @@ func (a *App) tasksCmd() *cobra.Command {
 				payload = append(payload, merged)
 			}
 
-			return a.emit(payload, func() {
+			return a.Emit(payload, func() {
 				if len(rows) == 0 {
-					a.println("（没有任务）")
+					a.Println("（没有任务）")
 					return
 				}
 				nameWidth := 0
@@ -119,7 +120,7 @@ func (a *App) tasksCmd() *cobra.Command {
 						id = id[:8]
 					}
 					name := jsonx.Str(row.Item, "name")
-					a.printf("%-26s %-8s %-*s %5s  %s%s\n",
+					a.Printf("%-26s %-8s %-*s %5s  %s%s\n",
 						row.Type, id, nameWidth, name, progressText, state, errText)
 				}
 			})
@@ -132,7 +133,7 @@ func (a *App) tasksCmd() *cobra.Command {
 	return cmd
 }
 
-func (a *App) cancelTaskCmd() *cobra.Command {
+func (a *CLI) cancelTaskCmd() *cobra.Command {
 	var (
 		taskType string
 		action   string
@@ -149,7 +150,7 @@ func (a *App) cancelTaskCmd() *cobra.Command {
 			ctx := cmd.Context()
 			id := args[0]
 
-			candidates := client.TaskTypes
+			candidates := TaskTypes
 			if taskType != "" {
 				candidates = []string{taskType}
 			}
@@ -162,7 +163,7 @@ func (a *App) cancelTaskCmd() *cobra.Command {
 				}
 			}
 			if target == "" {
-				return exitf(1, "没找到任务 %s（已尝试 %d 种类型）", id, len(candidates))
+				return apperr.Exitf(1, "没找到任务 %s（已尝试 %d 种类型）", id, len(candidates))
 			}
 
 			verb := "取消"
@@ -180,7 +181,7 @@ func (a *App) cancelTaskCmd() *cobra.Command {
 			if runErr != nil {
 				return runErr
 			}
-			a.printf("✓ 已%s任务 %s（类型 %s）\n", verb, id, target)
+			a.Printf("✓ 已%s任务 %s（类型 %s）\n", verb, id, target)
 			return nil
 		},
 	}

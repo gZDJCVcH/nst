@@ -1,4 +1,4 @@
-package client
+package openlist
 
 import (
 	"context"
@@ -11,6 +11,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"nst/internal/apierr"
 )
 
 // recorder 记录收到的请求，并可返回固定响应。
@@ -59,7 +61,7 @@ func newTestClient(t *testing.T, base string) *Client {
 func TestApiErrorHints(t *testing.T) {
 	cases := []struct {
 		name   string
-		err    *ApiError
+		err    *apierr.ApiError
 		has    []string
 		hasNot []string
 	}{

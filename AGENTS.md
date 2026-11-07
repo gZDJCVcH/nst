@@ -11,27 +11,25 @@
 ## 目录与职责
 
 ```
-cmd/nst/main.go        只做 os.Exit 转换；以 openlist-cli 名字调用时自动补 openlist 子命令
-internal/cli/          命令定义与渲染
-  app.go                App：IO、全局参数、退出码映射、newClient
-  root.go               命令树注册（顶层 version/upgrade/openlist + 全局 flag）、openlistCmd()
-  auth.go browse.go transfer.go ops.go tasks.go admin.go verify.go version.go upgrade.go
-  helpers.go            本地文件枚举、sha1、脱敏、mkdirP
-  confighelp.go         配置读写薄封装
-internal/client/        HTTP 层
-  client.go             _request 等价物、鉴权、错误映射、限流、目录缓存
-  transfer.go           上传/下载（流式 + 进度）
-  util.go               URL 编码、挂载点排序
-internal/pathx/         local: / remote: 前缀解析
-internal/config/        ~/.config/openlist-cli/config.json 读写（0600 原子写）
-internal/credential/    登录模式与凭据解析（服务无关）
-internal/output/        尺寸/时间格式化、列表渲染、进度、脱敏、确认
-internal/jsonx/         任意 JSON 的宽松读取（json.Number，不丢精度）
-skills/nst/             Agent Skill：SKILL.md 索引 + references/<子命令>/ 子文档
-scripts/check-skill.sh  Skill 结构校验，ci.yml 会跑
+cmd/nst/main.go              只做 os.Exit 转换；以 openlist-cli 名字调用时自动补 openlist 子命令
+internal/cli/                组合根：命令树装配、version/upgrade
+internal/app/                公共运行环境：IO、全局参数、退出码、提示、浏览器
+internal/apperr/             退出码错误与统一错误分类
+internal/apierr/             各服务共用的接口/网络错误
+internal/auth/               登录模式、凭据解析、登录流程骨架（服务实现 hooks）
+internal/config/             按服务配置（Store），0600 原子写
+internal/service/openlist/   OpenList 服务：HTTP 客户端、命令、Register
+  client.go transfer.go util.go
+  auth.go browse.go ops.go tasks.go transfer_cmd.go admin.go verify.go
+  helpers.go confighelp.go openbrowser.go register.go
+internal/pathx/              local: / remote: 前缀解析
+internal/output/             尺寸/时间格式化、列表渲染、进度、脱敏、确认
+internal/jsonx/              任意 JSON 的宽松读取（json.Number，不丢精度）
+skills/nst/                  Agent Skill：SKILL.md 索引 + references/<子命令>/ 子文档
+scripts/check-skill.sh       Skill 结构校验，ci.yml 会跑
 ```
 
-新增 OpenList 功能通常**不动** `pathx` / `output`，只改 `client`（加接口封装）和 `cli`（加命令 + 参数 + 在 `root.go` 的 `openlistCmd()` 注册）。新增其它服务的命令时，在 `buildRoot()` 注册新的父命令，源码按包隔离。
+依赖方向：`cmd → cli → service/* → app/auth/config/...`。**服务包之间、服务包与 cli 之间禁止互相 import**。新增服务时在 `internal/service/<服务>/` 建包，提供 `Register(root, app) *cobra.Command`，再在 `cli/root.go` 的 `buildRoot()` 里注册；能力实现留在服务包，只有跨服务复用的部分才下沉到平台包。
 
 ## 命令
 
@@ -77,7 +75,7 @@ sh scripts/check-skill.sh
 
 **6. 错误信息要能指导下一步。**
 
-`ApiError.Render()` 里按 code 给 hint：401 提示重新登录、403 提示权限、404 分「路径不存在」和「该功能在此存储不可用」两种、405 提示 115 令牌过期。新增错误分支时保持这个风格，不要只抛原始 message。
+`ApiError.Render()` 里按 code 给 hint（在 `internal/apierr`，服务的提示通过 `Hints` 注入）：401 提示重新登录、403 提示权限、404 分「路径不存在」和「该功能在此存储不可用」两种、405 提示 115 令牌过期。新增错误分支时保持这个风格，不要只抛原始 message。
 
 ## OpenList / 115 的已知坑
 
@@ -96,7 +94,7 @@ sh scripts/check-skill.sh
 
 | 坑 | 对策 |
 |---|---|
-| `os.UserConfigDir()` 在 macOS 返回 `~/Library/Application Support` | `config.Dir()` 手工拼 `$XDG_CONFIG_HOME` → `~/.config`，配置位置不随平台变化 |
+| `os.UserConfigDir()` 在 macOS 返回 `~/Library/Application Support` | `config.Store.Dir()` 手工拼 `$XDG_CONFIG_HOME` → `~/.config`，配置位置不随平台变化 |
 | `filepath` 用在远端路径上，Windows 会把 `/` 变成 `\` | 远端一律 `internal/pathx`（内部用 `path`），只有本地路径用 `filepath` |
 | `path.Clean` 会折叠开头的 `//`，与 `posixpath.normpath` 不同 | `NormalizeRemote` 先手工折叠再 `path.Clean`，有单测覆盖 |
 | `encoding/json` 默认把数字解成 float64，`id`/`size` 回显成科学计数法 | 统一用 `jsonx.Decode`（`UseNumber`），读值走 `jsonx.Int/Str/Bool` |
@@ -123,16 +121,16 @@ go test ./...          # 纯逻辑 + httptest 假服务端，不碰真实网络
 
 ## 加一个命令要改哪几处
 
-1. `cli/xxx.go` 里写 `func (a *App) xxxCmd() *cobra.Command`，先解析路径再 `a.newClient(true)`（顺序反了会先报"未登录"、掩盖路径错误）
-2. `root.go` 的 `openlistCmd().AddCommand(...)` 里注册
-3. 在 `internal/cli/*_test.go` 补用例（用 `runCLI` + `httptest`，不要连真实服务）
+1. `internal/service/openlist/xxx.go` 里写 `func (a *CLI) xxxCmd() *cobra.Command`，先解析路径再 `a.newClient(true)`（顺序反了会先报“未登录”、掩盖路径错误）
+2. `internal/service/openlist/register.go` 的 `Register()` 里注册
+3. 在同包 `*_test.go` 补用例（用 `runCLI` + `httptest`，不要连真实服务）
 4. 有写操作就调 `c.Invalidate()`
 5. 更新 `README.md` 的命令表
 6. 涉及新参数或触发场景时，更新 `skills/nst/references/openlist/` 下对应文档
 
 ## 登录模式约定
 
-`internal/credential` 只做模式判定与字段优先级，不含服务特定逻辑；探活、校验、保存留在 `internal/cli/auth.go`。后续服务复用同一套 `Resolve` 与 `Result`，在服务侧补自己的探活与校验即可。
+`internal/auth` 负责模式判定、字段优先级与登录流程骨架 `Flow`；服务通过 `Service` 接口提供 `AddressPrompt` / `NormalizeURL` / `TokenPage` / `Probe` / `Exchange` / `Validate` / `Save`。流程本身不含服务特定逻辑，OpenList 的实现见 `internal/service/openlist/auth.go`。
 
 - 三种模式：`context`（配置 + 环境变量）、`flags`（参数一次给齐）、`interactive`（逐步询问）
 - 默认 `auto` 推断，`--mode` 可强制；字段优先级 `--url` / `--token` > 环境变量 > 配置文件 > 交互询问
@@ -156,9 +154,10 @@ go test ./...          # 纯逻辑 + httptest 假服务端，不碰真实网络
 ## 不要做
 
 - 引入第三方依赖（cobra / x/term 之外）
-- 绕过 `client` 直接发 HTTP 请求
+- 绕过服务包的 client 直接发 HTTP 请求
 - 用 `exec.Command` 调外部命令完成本可以用 API 做的事
 - 在用户既有目录上做写操作测试
 - 改 Release 资产命名（`nst_<ver>_<os>_<arch>`），`install.sh` 和 `upgrade` 都依赖它
 - 在 `skills/` 下再嵌套 `SKILL.md` 当作子 skill
-- 把服务特定逻辑（探活、换 token、保存配置）塞进 `internal/credential`
+- 把服务特定逻辑（探活、换 token、保存配置）塞进 `internal/auth` 或 `internal/app`
+- 让服务包互相 import，或让服务包依赖 `internal/cli`

@@ -1,5 +1,5 @@
-// Package client 封装 OpenList REST API：鉴权、限流、缓存、错误映射。
-package client
+// Package openlist 实现 OpenList 命令行客户端：API、限流、缓存、传输与命令。
+package openlist
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"nst/internal/apierr"
 	"nst/internal/jsonx"
 	"nst/internal/pathx"
 )
@@ -39,79 +40,22 @@ var localDrivers = map[string]bool{
 	"local": true, "s3": true, "ftp": true, "sftp": true, "smb": true, "webdav": true,
 }
 
-// ApiError 表示服务端返回 code != 200，或返回了非 JSON。
-type ApiError struct {
-	Code     *int
-	Message  string
-	Endpoint string
-}
-
-func (e *ApiError) Error() string { return e.Render() }
-
-// Render 生成带下一步提示的错误文案。
-func (e *ApiError) Render() string {
-	hint := ""
-	if e.Code != nil {
-		switch *e.Code {
-		case 401:
-			hint = "\n  令牌无效或已过期，重新登录：nst openlist auth login --url <地址>"
-		case 403:
-			hint = "\n  权限不足（该操作需要管理员，或存储为只读）"
-		case 404:
-			msg := strings.ToLower(e.Message)
-			switch {
-			case msg == "" || containsAny(msg, "object", "path", "file", "目录", "文件"):
-				hint = "\n  路径不存在"
-			case containsAny(msg, "not found", "not exist", "不存在"):
-				hint = "" // 资源本身不存在（如 driver not found），message 已说明
-			default:
-				hint = "\n  该功能或资源在此存储上不可用"
-			}
-		case 405:
-			hint = "\n  该存储不支持此操作（115 令牌过期时写操作常报此错）"
-		}
-	}
-
-	message := e.Message
-	if message == "" {
-		message = "未知错误"
-	}
-	code := "None"
-	if e.Code != nil {
-		code = strconv.Itoa(*e.Code)
-	}
-	head := fmt.Sprintf("[%s] %s", code, message)
-	if e.Endpoint != "" {
-		head += "  (" + e.Endpoint + ")"
-	}
-	return head + hint
-}
-
-func containsAny(s string, subs ...string) bool {
-	for _, sub := range subs {
-		if strings.Contains(s, sub) {
-			return true
-		}
-	}
-	return false
+// openListHints 是 OpenList 专属的错误提示。
+var openListHints = apierr.Hints{
+	Unauthorized: "\n  令牌无效或已过期，重新登录：nst openlist auth login --url <地址>",
+	Forbidden:    "\n  权限不足（该操作需要管理员，或存储为只读）",
+	Unsupported:  "\n  该存储不支持此操作（115 令牌过期时写操作常报此错）",
 }
 
 // NewApiError 构造带状态码的错误。
-func NewApiError(code int, message, endpoint string) *ApiError {
-	return &ApiError{Code: &code, Message: message, Endpoint: endpoint}
+func NewApiError(code int, message, endpoint string) *apierr.ApiError {
+	return &apierr.ApiError{Code: &code, Message: message, Endpoint: endpoint, Hints: openListHints}
 }
 
 // NewApiErrorNoCode 构造没有状态码的错误（响应不是 JSON 时用）。
-func NewApiErrorNoCode(message, endpoint string) *ApiError {
-	return &ApiError{Message: message, Endpoint: endpoint}
+func NewApiErrorNoCode(message, endpoint string) *apierr.ApiError {
+	return &apierr.ApiError{Message: message, Endpoint: endpoint, Hints: openListHints}
 }
-
-// NetworkError 表示连不上、超时等传输层错误。
-type NetworkError struct {
-	Msg string
-}
-
-func (e *NetworkError) Error() string { return e.Msg }
 
 // Mount 是一个挂载点及其驱动。
 type Mount struct {
@@ -133,6 +77,7 @@ type Client struct {
 	LocalInterval time.Duration
 	CacheTTL      time.Duration
 	Timeout       time.Duration
+	Hints         apierr.Hints
 
 	http *http.Client
 
@@ -156,6 +101,7 @@ func New(base, token string) (*Client, error) {
 		LocalInterval: LocalInterval,
 		CacheTTL:      CacheTTL,
 		Timeout:       DefaultTimeout,
+		Hints:         openListHints,
 		http: &http.Client{
 			Transport: &http.Transport{
 				Proxy:                 http.ProxyFromEnvironment,
@@ -235,7 +181,7 @@ func (c *Client) do(ctx context.Context, method, endpoint string, opt reqOptions
 
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {
-		return nil, &NetworkError{Msg: fmt.Sprintf("请求构造失败：%v", err)}
+		return nil, &apierr.NetworkError{Msg: fmt.Sprintf("请求构造失败：%v", err)}
 	}
 	if opt.BodyLen > 0 {
 		req.ContentLength = opt.BodyLen
@@ -274,23 +220,23 @@ func (c *Client) do(ctx context.Context, method, endpoint string, opt reqOptions
 		return nil, NewApiErrorNoCode(fmt.Sprintf("返回的不是预期结构：%d 字节", len(raw)), endpoint)
 	}
 	if code := jsonx.Int(obj, "code"); code != 200 {
-		c := int(code)
-		return nil, &ApiError{Code: &c, Message: jsonx.Str(obj, "message"), Endpoint: endpoint}
+		status := int(code)
+		return nil, &apierr.ApiError{Code: &status, Message: jsonx.Str(obj, "message"), Endpoint: endpoint, Hints: c.Hints}
 	}
 	return obj["data"], nil
 }
 
-func networkError(url string, err error) *NetworkError {
+func networkError(url string, err error) *apierr.NetworkError {
 	var nerr net.Error
 	if errors.Is(err, context.DeadlineExceeded) || (errors.As(err, &nerr) && nerr.Timeout()) {
-		return &NetworkError{Msg: fmt.Sprintf("请求超时：%s", url)}
+		return &apierr.NetworkError{Msg: fmt.Sprintf("请求超时：%s", url)}
 	}
 	reason := err.Error()
 	var uerr interface{ Unwrap() error }
 	if errors.As(err, &uerr) && uerr.Unwrap() != nil {
 		reason = uerr.Unwrap().Error()
 	}
-	return &NetworkError{Msg: fmt.Sprintf("无法连接 %s：%s", url, reason)}
+	return &apierr.NetworkError{Msg: fmt.Sprintf("无法连接 %s：%s", url, reason)}
 }
 
 func (c *Client) post(ctx context.Context, endpoint string, payload map[string]any) (any, error) {

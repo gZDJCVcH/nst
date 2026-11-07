@@ -1,4 +1,4 @@
-package cli
+package openlist
 
 import (
 	"os"
@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"nst/internal/apperr"
 	"nst/internal/jsonx"
 	"nst/internal/output"
 	"nst/internal/pathx"
@@ -36,7 +37,7 @@ type verifyPayload struct {
 	Items      []verifyItem `json:"items"`
 }
 
-func (a *App) verifyCmd() *cobra.Command {
+func (a *CLI) verifyCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "verify <local:路径> <remote:路径>",
 		Short: "按大小+sha1 比对本地与远端，不下载文件",
@@ -57,11 +58,11 @@ func (a *App) verifyCmd() *cobra.Command {
 			ctx := cmd.Context()
 
 			if _, err := os.Stat(localRoot); err != nil {
-				return exitf(1, "本地路径不存在：%s", localRoot)
+				return apperr.Exitf(1, "本地路径不存在：%s", localRoot)
 			}
 			remoteInfo, err := c.Stat(ctx, remoteRoot, "")
 			if err != nil {
-				return exitf(1, "远端路径不存在：%s", remoteRoot)
+				return apperr.Exitf(1, "远端路径不存在：%s", remoteRoot)
 			}
 			remoteIsDir := jsonx.Bool(remoteInfo, "is_dir")
 
@@ -70,7 +71,7 @@ func (a *App) verifyCmd() *cobra.Command {
 				return err
 			}
 			if len(items) == 0 {
-				return exitf(1, "本地没有可比对的文件：%s", localRoot)
+				return apperr.Exitf(1, "本地没有可比对的文件：%s", localRoot)
 			}
 
 			listing := map[string]map[string]map[string]any{}
@@ -173,7 +174,7 @@ func (a *App) verifyCmd() *cobra.Command {
 				}
 			}
 
-			if a.jsonOut {
+			if a.Options.JSON {
 				payload := verifyPayload{
 					Local:      localRoot,
 					Remote:     remoteRoot,
@@ -217,14 +218,14 @@ func (a *App) verifyCmd() *cobra.Command {
 						repeat(" ", pad) + "  " +
 						padLeft(output.HumanSize(r.LocalSize), 8) + " / " +
 						padLeft(remoteSize, 8) + "  " + r.Detail
-					a.println(trimRightSpaces(line))
+					a.Println(trimRightSpaces(line))
 				}
-				a.println()
-				a.printf("共 %d 项：一致 %d，异常 %d\n", len(rows), len(rows)-bad, bad)
+				a.Println()
+				a.Printf("共 %d 项：一致 %d，异常 %d\n", len(rows), len(rows)-bad, bad)
 			}
 
 			if bad > 0 {
-				return exitf(1, "")
+				return apperr.Exitf(1, "")
 			}
 			return nil
 		},

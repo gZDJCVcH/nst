@@ -1,4 +1,4 @@
-package cli
+package openlist
 
 import (
 	"os"
@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"nst/internal/apperr"
 	"nst/internal/jsonx"
 	"nst/internal/output"
 	"nst/internal/pathx"
@@ -19,7 +20,7 @@ type listPayload struct {
 	Content any    `json:"content"`
 }
 
-func (a *App) listCmd() *cobra.Command {
+func (a *CLI) listCmd() *cobra.Command {
 	var (
 		long     bool
 		page     int
@@ -47,9 +48,9 @@ func (a *App) listCmd() *cobra.Command {
 			}
 			entries := jsonx.Objects(data["content"])
 			payload := listPayload{Path: target, Total: data["total"], Content: data["content"]}
-			return a.emit(payload, func() {
+			return a.Emit(payload, func() {
 				if long {
-					a.printf("目录：%s  （%d 项）\n", target, len(entries))
+					a.Printf("目录：%s  （%d 项）\n", target, len(entries))
 				}
 				output.PrintEntries(a.Out, output.EntriesFrom(data["content"]), long)
 			})
@@ -63,7 +64,7 @@ func (a *App) listCmd() *cobra.Command {
 	return cmd
 }
 
-func (a *App) statCmd() *cobra.Command {
+func (a *CLI) statCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "stat <remote:路径>",
 		Short: "文件/目录详情",
@@ -81,26 +82,26 @@ func (a *App) statCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return a.emit(info, func() {
-				a.printf("名称  ：%s\n", jsonx.Str(info, "name"))
+			return a.Emit(info, func() {
+				a.Printf("名称  ：%s\n", jsonx.Str(info, "name"))
 				kind := "文件"
 				if jsonx.Bool(info, "is_dir") {
 					kind = "目录"
 				}
-				a.printf("类型  ：%s\n", kind)
+				a.Printf("类型  ：%s\n", kind)
 				if !jsonx.Bool(info, "is_dir") {
-					a.printf("大小  ：%s\n", output.HumanSize(info["size"]))
+					a.Printf("大小  ：%s\n", output.HumanSize(info["size"]))
 				}
-				a.printf("修改  ：%s\n", output.FmtTime(info["modified"]))
+				a.Printf("修改  ：%s\n", output.FmtTime(info["modified"]))
 				if jsonx.Str(info, "sign") != "" || jsonx.Str(info, "raw_url") != "" {
-					a.println("有直链：是")
+					a.Println("有直链：是")
 				}
 			})
 		},
 	}
 }
 
-func (a *App) treeCmd() *cobra.Command {
+func (a *CLI) treeCmd() *cobra.Command {
 	var maxDepth int
 	cmd := &cobra.Command{
 		Use:   "tree <remote:路径>",
@@ -141,7 +142,7 @@ func (a *App) treeCmd() *cobra.Command {
 						branch = "└── "
 					}
 					name := jsonx.Str(it, "name")
-					a.printf("%s%s%s\n", prefix, branch, name)
+					a.Printf("%s%s%s\n", prefix, branch, name)
 					if jsonx.Bool(it, "is_dir") && (depthLimit < 0 || depth+1 < depthLimit) {
 						childPrefix := prefix + "│   "
 						if last {
@@ -155,7 +156,7 @@ func (a *App) treeCmd() *cobra.Command {
 				return nil
 			}
 
-			a.println(root)
+			a.Println(root)
 			return walk(root, "", 0)
 		},
 	}
@@ -163,7 +164,7 @@ func (a *App) treeCmd() *cobra.Command {
 	return cmd
 }
 
-func (a *App) searchCmd() *cobra.Command {
+func (a *CLI) searchCmd() *cobra.Command {
 	var (
 		parent  string
 		scope   int
@@ -192,18 +193,18 @@ func (a *App) searchCmd() *cobra.Command {
 				return err
 			}
 			entries := jsonx.Objects(data["content"])
-			return a.emit(data, func() {
+			return a.Emit(data, func() {
 				for _, it := range entries {
 					mark := "  "
 					if jsonx.Bool(it, "is_dir") {
 						mark = "📁"
 					}
-					a.printf("%s %9s  %s\n", mark,
+					a.Printf("%s %9s  %s\n", mark,
 						output.HumanSize(it["size"]),
 						relJoin(jsonx.Str(it, "parent"), jsonx.Str(it, "name")))
 				}
 				if len(entries) == 0 {
-					a.println("（无匹配）")
+					a.Println("（无匹配）")
 				}
 			})
 		},
@@ -215,7 +216,7 @@ func (a *App) searchCmd() *cobra.Command {
 	return cmd
 }
 
-func (a *App) readCmd() *cobra.Command {
+func (a *CLI) readCmd() *cobra.Command {
 	var (
 		maxBytes int64
 		encoding string
@@ -232,7 +233,7 @@ func (a *App) readCmd() *cobra.Command {
 			}
 			normalized := strings.ToLower(strings.ReplaceAll(encoding, "-", ""))
 			if normalized != "utf8" {
-				return exitf(1, "目前只支持 --encoding utf-8（收到 %q）；"+
+				return apperr.Exitf(1, "目前只支持 --encoding utf-8（收到 %q）；"+
 					"需要其他编码请先用 iconv 转换文件", encoding)
 			}
 
@@ -245,11 +246,11 @@ func (a *App) readCmd() *cobra.Command {
 				return err
 			}
 			if jsonx.Bool(info, "is_dir") {
-				return exitf(1, "这是一个目录，不能 read")
+				return apperr.Exitf(1, "这是一个目录，不能 read")
 			}
 			size := jsonx.Int(info, "size")
 			if size > maxBytes && !force {
-				return exitf(1, "文件 %s 超过阈值 %s，加 --force 继续",
+				return apperr.Exitf(1, "文件 %s 超过阈值 %s，加 --force 继续",
 					output.HumanSize(size), output.HumanSize(maxBytes))
 			}
 
@@ -298,7 +299,7 @@ func toValidUTF8(b []byte) []byte {
 	return out
 }
 
-func (a *App) linkCmd() *cobra.Command {
+func (a *CLI) linkCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "link <remote:路径>",
 		Short: "打印直链",
@@ -316,7 +317,7 @@ func (a *App) linkCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			a.println(url)
+			a.Println(url)
 			return nil
 		},
 	}

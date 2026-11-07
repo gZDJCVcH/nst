@@ -1,5 +1,5 @@
-// Package credential 定义登录模式与凭据解析约定，与具体服务无关。
-package credential
+// Package auth 定义登录模式、凭据解析与共用登录流程，与具体服务无关。
+package auth
 
 import (
 	"fmt"

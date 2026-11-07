@@ -1,4 +1,4 @@
-package cli
+package openlist
 
 import (
 	"context"
@@ -13,14 +13,15 @@ import (
 	"sort"
 	"strings"
 
-	"nst/internal/client"
+	"nst/internal/apierr"
+	"nst/internal/apperr"
 	"nst/internal/jsonx"
 	"nst/internal/output"
 	"nst/internal/pathx"
 )
 
 // asAPIError 是 errors.As 的薄封装，便于在命令里分支处理。
-func asAPIError(err error, target **client.ApiError) bool {
+func asAPIError(err error, target **apierr.ApiError) bool {
 	return errors.As(err, target)
 }
 
@@ -110,19 +111,19 @@ func iterLocalFiles(root string) ([]localFile, error) {
 func iterUploadCandidates(localPath string, recursive bool) ([]localFile, error) {
 	info, err := os.Stat(localPath)
 	if err != nil {
-		return nil, exitf(1, "本地路径不存在：%s", localPath)
+		return nil, apperr.Exitf(1, "本地路径不存在：%s", localPath)
 	}
 	if !info.IsDir() {
 		return []localFile{{rel: "", abs: localPath}}, nil
 	}
 	if !recursive {
-		return nil, exitf(1, "%s 是目录，上传目录需要 -r", localPath)
+		return nil, apperr.Exitf(1, "%s 是目录，上传目录需要 -r", localPath)
 	}
 	return iterLocalFiles(localPath)
 }
 
 // mkdirP 逐级创建远端目录。
-func mkdirP(c *client.Client, ctx context.Context, p string) error {
+func mkdirP(c *Client, ctx context.Context, p string) error {
 	cur := ""
 	for _, part := range strings.Split(pathx.NormalizeRemote(p), "/") {
 		if part == "" {

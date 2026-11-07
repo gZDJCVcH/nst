@@ -19,6 +19,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"nst/internal/app"
 	"nst/internal/buildinfo"
 )
 
@@ -45,7 +46,7 @@ func downloadBase() string {
 	return "https://github.com"
 }
 
-func (a *App) upgradeCmd() *cobra.Command {
+func upgradeCmd(a *app.App) *cobra.Command {
 	var (
 		check       bool
 		pinned      string
@@ -61,7 +62,7 @@ func (a *App) upgradeCmd() *cobra.Command {
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if showVersion {
-				a.println(buildinfo.String())
+				a.Println(buildinfo.String())
 				return nil
 			}
 			ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Second)
@@ -75,22 +76,22 @@ func (a *App) upgradeCmd() *cobra.Command {
 
 			if !force && !isNewer(tag, current) {
 				if check {
-					a.printf("已是最新版本 %s（远端 %s）\n", current, tag)
+					a.Printf("已是最新版本 %s（远端 %s）\n", current, tag)
 				} else {
-					a.printf("已是最新版本 %s\n", current)
+					a.Printf("已是最新版本 %s\n", current)
 				}
 				return nil
 			}
 			if check {
-				a.printf("有新版本 %s（当前 %s）\n升级：nst upgrade\n", tag, current)
+				a.Printf("有新版本 %s（当前 %s）\n升级：nst upgrade\n", tag, current)
 				return nil
 			}
 
-			a.printf("正在升级 %s → %s ...\n", current, tag)
+			a.Printf("正在升级 %s → %s ...\n", current, tag)
 			if err := applyUpgrade(ctx, tag, a.Err); err != nil {
 				return err
 			}
-			a.printf("✓ 已升级到 %s\n", tag)
+			a.Printf("✓ 已升级到 %s\n", tag)
 			return nil
 		},
 	}

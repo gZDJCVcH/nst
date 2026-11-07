@@ -7,38 +7,54 @@ import (
 	"testing"
 )
 
-// 配置目录固定为 ~/.config/openlist-cli，不能用 os.UserConfigDir()（macOS 指向 ~/Library/Application Support）。
-func TestDirKeepsDotConfigLayout(t *testing.T) {
+// OpenList 沿用旧目录 ~/.config/openlist-cli，不能用 os.UserConfigDir()
+// （macOS 指向 ~/Library/Application Support）。
+func TestOpenListKeepsLegacyDir(t *testing.T) {
 	home := t.TempDir()
 	// Windows 上 os.UserHomeDir 读 USERPROFILE，两个都设才跨平台
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
 	t.Setenv("XDG_CONFIG_HOME", "")
 
+	s := OpenList()
 	want := filepath.Join(home, ".config", "openlist-cli")
-	if got := Dir(); got != want {
+	if got := s.Dir(); got != want {
 		t.Errorf("Dir() = %q，期望 %q", got, want)
 	}
-	if got, wantFile := File(), filepath.Join(want, "config.json"); got != wantFile {
+	if got, wantFile := s.File(), filepath.Join(want, "config.json"); got != wantFile {
 		t.Errorf("File() = %q，期望 %q", got, wantFile)
 	}
 }
 
-func TestDirHonorsXDG(t *testing.T) {
+func TestOpenListHonorsXDG(t *testing.T) {
 	xdg := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", xdg)
-	if got, want := Dir(), filepath.Join(xdg, "openlist-cli"); got != want {
+	if got, want := OpenList().Dir(), filepath.Join(xdg, "openlist-cli"); got != want {
 		t.Errorf("Dir() = %q，期望 %q", got, want)
+	}
+}
+
+func TestNewServiceUsesNestedDir(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+
+	s := New("qinglong")
+	if got, want := s.Dir(), filepath.Join(xdg, "nst", "qinglong"); got != want {
+		t.Errorf("Dir() = %q，期望 %q", got, want)
+	}
+	if s.EnvURL != "NST_QINGLONG_URL" || s.EnvToken != "NST_QINGLONG_TOKEN" {
+		t.Errorf("环境变量名不对：%s / %s", s.EnvURL, s.EnvToken)
 	}
 }
 
 func TestSaveLoadRoundTrip(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	t.Setenv(EnvURL, "")
-	t.Setenv(EnvToken, "")
+	s := OpenList()
+	t.Setenv(s.EnvURL, "")
+	t.Setenv(s.EnvToken, "")
 
 	cfg := map[string]any{"url": "http://127.0.0.1:5244", "token": "abc", "username": "admin"}
-	saved, err := Save(cfg)
+	saved, err := s.Save(cfg)
 	if err != nil {
 		t.Fatalf("Save: %v", err)
 	}
@@ -54,7 +70,7 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 		}
 	}
 
-	loaded, err := Load()
+	loaded, err := s.Load()
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -65,13 +81,14 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 
 func TestEnvOverridesFile(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	if _, err := Save(map[string]any{"url": "http://file", "token": "file-token"}); err != nil {
+	s := OpenList()
+	if _, err := s.Save(map[string]any{"url": "http://file", "token": "file-token"}); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv(EnvURL, "http://env")
-	t.Setenv(EnvToken, "env-token")
+	t.Setenv(s.EnvURL, "http://env")
+	t.Setenv(s.EnvToken, "env-token")
 
-	cfg, err := Load()
+	cfg, err := s.Load()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,14 +99,15 @@ func TestEnvOverridesFile(t *testing.T) {
 
 func TestClearToken(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	t.Setenv(EnvToken, "")
-	if _, err := Save(map[string]any{"url": "http://x", "token": "t"}); err != nil {
+	s := OpenList()
+	t.Setenv(s.EnvToken, "")
+	if _, err := s.Save(map[string]any{"url": "http://x", "token": "t"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := ClearToken(); err != nil {
+	if err := s.ClearToken(); err != nil {
 		t.Fatalf("ClearToken: %v", err)
 	}
-	cfg, _ := Load()
+	cfg, _ := s.Load()
 	if Str(cfg, "token") != "" {
 		t.Error("令牌应被清除")
 	}
@@ -108,7 +126,7 @@ func TestBrokenConfigIsReported(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(path, "config.json"), []byte("{not json"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Load(); err == nil {
+	if _, err := OpenList().Load(); err == nil {
 		t.Fatal("损坏的配置应报错")
 	}
 }

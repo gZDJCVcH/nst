@@ -1,4 +1,4 @@
-package cli
+package openlist
 
 import (
 	"context"
@@ -9,13 +9,13 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"nst/internal/client"
+	"nst/internal/apperr"
 	"nst/internal/jsonx"
 	"nst/internal/output"
 	"nst/internal/pathx"
 )
 
-func (a *App) uploadCmd() *cobra.Command {
+func (a *CLI) uploadCmd() *cobra.Command {
 	var (
 		recursive   bool
 		skipSame    bool
@@ -51,7 +51,7 @@ func (a *App) uploadCmd() *cobra.Command {
 				files = append(files, got...)
 			}
 			if len(files) == 0 {
-				return exitf(1, "没有可上传的文件")
+				return apperr.Exitf(1, "没有可上传的文件")
 			}
 
 			c, err := a.newClient(true)
@@ -66,7 +66,7 @@ func (a *App) uploadCmd() *cobra.Command {
 				if f.rel != "" {
 					targetDir = pathx.JoinRemote(remoteDir, path.Dir(f.rel))
 					if err := mkdirP(c, ctx, targetDir); err != nil {
-						a.errorf("✗ 建目录失败 %s：%v\n", targetDir, err)
+						a.Errorf("✗ 建目录失败 %s：%v\n", targetDir, err)
 						failed++
 						if stopOnError {
 							break
@@ -81,13 +81,13 @@ func (a *App) uploadCmd() *cobra.Command {
 				if skipSame && c.Exists(ctx, target) {
 					if info, statErr := c.Stat(ctx, target, ""); statErr == nil {
 						if st, err := os.Stat(f.abs); err == nil && jsonx.Int(info, "size") == st.Size() {
-							a.printf("· 跳过（大小相同）：%s\n", target)
+							a.Printf("· 跳过（大小相同）：%s\n", target)
 							skipped++
 							continue
 						}
 					}
 				} else if noOverwrite && c.Exists(ctx, target) {
-					a.printf("· 跳过（已存在）：%s\n", target)
+					a.Printf("· 跳过（已存在）：%s\n", target)
 					skipped++
 					continue
 				}
@@ -104,7 +104,7 @@ func (a *App) uploadCmd() *cobra.Command {
 					progress.Done()
 				}
 				if uploadErr != nil {
-					a.errorf("✗ %s：%v\n", target, uploadErr)
+					a.Errorf("✗ %s：%v\n", target, uploadErr)
 					failed++
 					if stopOnError {
 						break
@@ -114,16 +114,16 @@ func (a *App) uploadCmd() *cobra.Command {
 
 				c.Invalidate(targetDir)
 				if st, err := os.Stat(f.abs); err == nil {
-					a.printf("✓ %s  (%s)\n", target, output.HumanSize(st.Size()))
+					a.Printf("✓ %s  (%s)\n", target, output.HumanSize(st.Size()))
 				} else {
-					a.printf("✓ %s\n", target)
+					a.Printf("✓ %s\n", target)
 				}
 				uploaded++
 			}
 
-			a.printf("\n完成：成功 %d，跳过 %d，失败 %d\n", uploaded, skipped, failed)
+			a.Printf("\n完成：成功 %d，跳过 %d，失败 %d\n", uploaded, skipped, failed)
 			if failed > 0 {
-				return exitf(1, "")
+				return apperr.Exitf(1, "")
 			}
 			return nil
 		},
@@ -137,7 +137,7 @@ func (a *App) uploadCmd() *cobra.Command {
 	return cmd
 }
 
-func (a *App) downloadCmd() *cobra.Command {
+func (a *CLI) downloadCmd() *cobra.Command {
 	var (
 		recursive bool
 		quiet     bool
@@ -174,7 +174,7 @@ func (a *App) downloadCmd() *cobra.Command {
 
 			if jsonx.Bool(info, "is_dir") {
 				if !recursive {
-					return exitf(1, "这是目录，下载目录需要 -r")
+					return apperr.Exitf(1, "这是目录，下载目录需要 -r")
 				}
 				if err := os.MkdirAll(localPath, 0o755); err != nil {
 					return err
@@ -183,7 +183,7 @@ func (a *App) downloadCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				a.printf("完成：%d 个文件\n", count)
+				a.Printf("完成：%d 个文件\n", count)
 				return nil
 			}
 
@@ -209,7 +209,7 @@ func (a *App) downloadCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			a.printf("✓ %s\n", localPath)
+			a.Printf("✓ %s\n", localPath)
 			return nil
 		},
 	}
@@ -218,7 +218,7 @@ func (a *App) downloadCmd() *cobra.Command {
 	return cmd
 }
 
-func (a *App) downloadTree(ctx context.Context, c *client.Client, remoteDir, localDir string, quiet bool) (int, error) {
+func (a *CLI) downloadTree(ctx context.Context, c *Client, remoteDir, localDir string, quiet bool) (int, error) {
 	data, err := c.ListDir(ctx, remoteDir, "", 1, 0, false)
 	if err != nil {
 		return 0, err
@@ -253,13 +253,13 @@ func (a *App) downloadTree(ctx context.Context, c *client.Client, remoteDir, loc
 		if err != nil {
 			return count, err
 		}
-		a.printf("✓ %s\n", lpath)
+		a.Printf("✓ %s\n", lpath)
 		count++
 	}
 	return count, nil
 }
 
-func (a *App) removeCmd() *cobra.Command {
+func (a *CLI) removeCmd() *cobra.Command {
 	var (
 		recursive bool
 		yes       bool
@@ -289,7 +289,7 @@ func (a *App) removeCmd() *cobra.Command {
 					return err
 				}
 				if target == "/" {
-					return exitf(1, "拒绝删除根目录")
+					return apperr.Exitf(1, "拒绝删除根目录")
 				}
 				info, err := c.Stat(ctx, target, "")
 				if err != nil {
@@ -302,7 +302,7 @@ func (a *App) removeCmd() *cobra.Command {
 					}
 					children := jsonx.Objects(data["content"])
 					if len(children) > 0 && !recursive {
-						return exitf(1, "目录非空：%s（%d 项）\n  递归删除请加 -r", target, len(children))
+						return apperr.Exitf(1, "目录非空：%s（%d 项）\n  递归删除请加 -r", target, len(children))
 					}
 					plan = append(plan, planItem{kind: "dir", target: target, children: children})
 				} else {
@@ -320,9 +320,9 @@ func (a *App) removeCmd() *cobra.Command {
 					sb.WriteString("  - " + item.target + "（" + kind + "）\n")
 				}
 				prompt := "确认删除以下 " + strconv.Itoa(len(plan)) + " 项？\n" + strings.TrimRight(sb.String(), "\n")
-				if !output.Confirm(a.In, a.Err, prompt, false, a.isTTY()) {
-					a.println("已取消")
-					return exitf(1, "")
+				if !output.Confirm(a.In, a.Err, prompt, false, a.IsTTY()) {
+					a.Println("已取消")
+					return apperr.Exitf(1, "")
 				}
 			}
 
@@ -341,9 +341,9 @@ func (a *App) removeCmd() *cobra.Command {
 				}
 				c.Invalidate(item.target)
 				removed++
-				a.printf("✓ 已删除 %s\n", item.target)
+				a.Printf("✓ 已删除 %s\n", item.target)
 			}
-			a.printf("完成：共删除 %d 项\n", removed)
+			a.Printf("完成：共删除 %d 项\n", removed)
 			return nil
 		},
 	}
@@ -352,7 +352,7 @@ func (a *App) removeCmd() *cobra.Command {
 	return cmd
 }
 
-func (a *App) removeTree(ctx context.Context, c *client.Client, p string) (int, error) {
+func (a *CLI) removeTree(ctx context.Context, c *Client, p string) (int, error) {
 	data, err := c.ListDir(ctx, p, "", 1, 0, false)
 	if err != nil {
 		return 0, err
@@ -376,6 +376,6 @@ func (a *App) removeTree(ctx context.Context, c *client.Client, p string) (int, 
 	if err := c.Remove(ctx, p); err != nil {
 		return count, err
 	}
-	a.printf("✓ 已删除 %s\n", p)
+	a.Printf("✓ 已删除 %s\n", p)
 	return count + 1, nil
 }

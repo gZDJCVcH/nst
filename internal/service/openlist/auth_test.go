@@ -1,4 +1,4 @@
-package cli
+package openlist
 
 import (
 	"bytes"
@@ -8,7 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"nst/internal/config"
+	"github.com/spf13/cobra"
+
+	"nst/internal/app"
 )
 
 func loginServer(t *testing.T) *httptest.Server {
@@ -36,8 +38,8 @@ func loginServer(t *testing.T) *httptest.Server {
 func cleanLoginEnv(t *testing.T) {
 	t.Helper()
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	t.Setenv("OPENLIST_URL", "")
-	t.Setenv("OPENLIST_TOKEN", "")
+	t.Setenv(store.EnvURL, "")
+	t.Setenv(store.EnvToken, "")
 }
 
 func decodeResult(t *testing.T, out string) map[string]any {
@@ -88,7 +90,7 @@ func TestLoginAutoInfersFlags(t *testing.T) {
 func TestLoginContextFromConfig(t *testing.T) {
 	cleanLoginEnv(t)
 	srv := loginServer(t)
-	if _, err := config.Save(map[string]any{"url": srv.URL, "token": "saved-tok"}); err != nil {
+	if _, err := store.Save(map[string]any{"url": srv.URL, "token": "saved-tok"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -108,8 +110,8 @@ func TestLoginContextFromConfig(t *testing.T) {
 func TestLoginContextFromEnv(t *testing.T) {
 	cleanLoginEnv(t)
 	srv := loginServer(t)
-	t.Setenv("OPENLIST_URL", srv.URL)
-	t.Setenv("OPENLIST_TOKEN", "env-tok")
+	t.Setenv(store.EnvURL, srv.URL)
+	t.Setenv(store.EnvToken, "env-tok")
 
 	out, _, code := runCLI(t, "--json", "auth", "login")
 	if code != 0 {
@@ -195,15 +197,15 @@ func TestLoginInteractivePromptsForMissingURL(t *testing.T) {
 	srv := loginServer(t)
 
 	var out, errBuf bytes.Buffer
-	app := New()
-	app.Out = &out
-	app.Err = &errBuf
-	app.In = strings.NewReader(srv.URL + "\n")
-	tty := true
-	app.isTTYOverride = &tty
+	a := app.New()
+	a.Out = &out
+	a.Err = &errBuf
+	a.In = strings.NewReader(srv.URL + "\n")
+	a.SetTTY(true)
 
 	// 用 --token 给齐凭据，避免走到需要真实终端的密码输入框。
-	code := app.Execute([]string{"openlist", "auth", "login", "--mode=interactive", "--token", "tok"})
+	root := testRoot(a)
+	code := a.Execute([]string{"openlist", "auth", "login", "--mode=interactive", "--token", "tok"}, func(*app.App) *cobra.Command { return root })
 	if code != 0 {
 		t.Fatalf("退出码 %d，stdout=%q stderr=%q", code, out.String(), errBuf.String())
 	}

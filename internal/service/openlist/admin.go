@@ -1,4 +1,4 @@
-package cli
+package openlist
 
 import (
 	"fmt"
@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"nst/internal/apperr"
 	"nst/internal/jsonx"
 	"nst/internal/output"
 )
@@ -20,7 +21,7 @@ var storageFieldOrder = []string{
 	"seed_policy", "order_by", "order_direction", "modified",
 }
 
-func (a *App) driversCmd() *cobra.Command {
+func (a *CLI) driversCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "drivers",
 		Short: "列出支持的存储驱动",
@@ -40,18 +41,18 @@ func (a *App) driversCmd() *cobra.Command {
 			}
 			sort.Strings(names)
 
-			return a.emit(items, func() {
+			return a.Emit(items, func() {
 				for _, name := range names {
 					spec := jsonx.Object(items[name])
 					extra := len(jsonx.List(spec["additional"]))
-					a.printf("%-28s 专属配置项 %d 个\n", name, extra)
+					a.Printf("%-28s 专属配置项 %d 个\n", name, extra)
 				}
 			})
 		},
 	}
 }
 
-func (a *App) mountsCmd() *cobra.Command {
+func (a *CLI) mountsCmd() *cobra.Command {
 	var refresh bool
 	cmd := &cobra.Command{
 		Use:   "mounts",
@@ -69,19 +70,19 @@ func (a *App) mountsCmd() *cobra.Command {
 				payload = append(payload, map[string]any{"mount_path": m.Path, "driver": m.Driver})
 			}
 
-			return a.emit(payload, func() {
+			return a.Emit(payload, func() {
 				if len(items) == 0 {
-					a.println("拿不到存储列表（需要管理员权限）；所有请求将按网盘间隔限流")
+					a.Println("拿不到存储列表（需要管理员权限）；所有请求将按网盘间隔限流")
 					return
 				}
-				a.printf("%-16s%-16s%s\n", "挂载点", "驱动", "限流间隔")
+				a.Printf("%-16s%-16s%s\n", "挂载点", "驱动", "限流间隔")
 				for _, m := range items {
 					_, _, interval := c.DescribeTarget(m.Path)
 					flag := "不限"
 					if interval >= 200*time.Millisecond {
 						flag = fmt.Sprintf("%.2fs", interval.Seconds())
 					}
-					a.printf("%-16s%-16s%s\n", m.Path, m.Driver, flag)
+					a.Printf("%-16s%-16s%s\n", m.Path, m.Driver, flag)
 				}
 			})
 		},
@@ -90,7 +91,7 @@ func (a *App) mountsCmd() *cobra.Command {
 	return cmd
 }
 
-func (a *App) storageCmd() *cobra.Command {
+func (a *CLI) storageCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "storage",
 		Short: "存储只读查询",
@@ -99,7 +100,7 @@ func (a *App) storageCmd() *cobra.Command {
 	return cmd
 }
 
-func (a *App) storageGetCmd() *cobra.Command {
+func (a *CLI) storageGetCmd() *cobra.Command {
 	var showSecrets bool
 	cmd := &cobra.Command{
 		Use:   "get <id>",
@@ -108,7 +109,7 @@ func (a *App) storageGetCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := strconv.Atoi(args[0])
 			if err != nil {
-				return exitf(1, "存储 id 必须是整数：%q", args[0])
+				return apperr.Exitf(1, "存储 id 必须是整数：%q", args[0])
 			}
 			c, err := a.newClient(true)
 			if err != nil {
@@ -119,12 +120,12 @@ func (a *App) storageGetCmd() *cobra.Command {
 				return err
 			}
 			if len(info) == 0 {
-				return exitf(1, "没有 id=%d 的存储", id)
+				return apperr.Exitf(1, "没有 id=%d 的存储", id)
 			}
 
 			addition := maskedAddition(jsonx.Str(info, "addition"), showSecrets)
 
-			if a.jsonOut {
+			if a.Options.JSON {
 				payload := make(map[string]any, len(info))
 				for k, v := range info {
 					payload[k] = v
@@ -142,7 +143,7 @@ func (a *App) storageGetCmd() *cobra.Command {
 					continue
 				}
 				seen[key] = true
-				a.printf("%-22s %s\n", key, renderField(value))
+				a.Printf("%-22s %s\n", key, renderField(value))
 			}
 			rest := make([]string, 0, len(info))
 			for k := range info {
@@ -156,28 +157,28 @@ func (a *App) storageGetCmd() *cobra.Command {
 				if v := info[key]; v == nil || jsonx.StrOf(v) == "" {
 					continue
 				}
-				a.printf("%-22s %s\n", key, renderField(info[key]))
+				a.Printf("%-22s %s\n", key, renderField(info[key]))
 			}
 
 			switch {
 			case addition != nil:
-				a.println("\naddition:")
+				a.Println("\naddition:")
 				keys := make([]string, 0, len(addition))
 				for k := range addition {
 					keys = append(keys, k)
 				}
 				sort.Strings(keys)
 				for _, k := range keys {
-					a.printf("  %-22s %s\n", k, renderField(addition[k]))
+					a.Printf("  %-22s %s\n", k, renderField(addition[k]))
 				}
 			case jsonx.Str(info, "addition") != "":
-				a.printf("\naddition（无法解析为 JSON）:\n  %s\n", jsonx.Str(info, "addition"))
+				a.Printf("\naddition（无法解析为 JSON）:\n  %s\n", jsonx.Str(info, "addition"))
 			default:
-				a.println("\naddition:（空）")
+				a.Println("\naddition:（空）")
 			}
 
 			if !showSecrets {
-				a.println("\n敏感字段已打码，如需原值加 --show-secrets")
+				a.Println("\n敏感字段已打码，如需原值加 --show-secrets")
 			}
 			return nil
 		},
@@ -197,7 +198,7 @@ func renderField(v any) string {
 	return scalar(v)
 }
 
-func (a *App) driverCmd() *cobra.Command {
+func (a *CLI) driverCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "driver",
 		Short: "驱动信息",
@@ -206,7 +207,7 @@ func (a *App) driverCmd() *cobra.Command {
 	return cmd
 }
 
-func (a *App) driverInfoCmd() *cobra.Command {
+func (a *CLI) driverInfoCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "info <驱动名>",
 		Short: "某个驱动的配置项定义",
@@ -221,10 +222,10 @@ func (a *App) driverInfoCmd() *cobra.Command {
 				return err
 			}
 			if len(data) == 0 {
-				return exitf(1, "没有名为 %s 的驱动（先用 drivers 看列表）", args[0])
+				return apperr.Exitf(1, "没有名为 %s 的驱动（先用 drivers 看列表）", args[0])
 			}
 
-			if a.jsonOut {
+			if a.Options.JSON {
 				return output.DumpJSON(a.Out, data)
 			}
 
@@ -233,7 +234,7 @@ func (a *App) driverInfoCmd() *cobra.Command {
 				{"additional", "驱动专属配置"},
 			} {
 				items := jsonx.Objects(data[group.key])
-				a.printf("\n【%s】%d 项\n", group.label, len(items))
+				a.Printf("\n【%s】%d 项\n", group.label, len(items))
 				if len(items) == 0 {
 					continue
 				}
@@ -257,19 +258,19 @@ func (a *App) driverInfoCmd() *cobra.Command {
 					if opts := it["options"]; opts != nil && jsonx.StrOf(opts) != "" {
 						tail += "  可选: " + jsonx.StrOf(opts)
 					}
-					a.printf("  %-*s  %-8s %s%s\n", width, name, kind, need, tail)
+					a.Printf("  %-*s  %-8s %s%s\n", width, name, kind, need, tail)
 				}
 			}
 
 			if data["config"] != nil {
-				a.println("\n（config 结构较大，用 --json 查看）")
+				a.Println("\n（config 结构较大，用 --json 查看）")
 			}
 			return nil
 		},
 	}
 }
 
-func (a *App) configCmd() *cobra.Command {
+func (a *CLI) configCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
 		Short: "本地配置",
@@ -292,7 +293,7 @@ func (a *App) configCmd() *cobra.Command {
 			Short: "配置文件路径",
 			Args:  cobra.NoArgs,
 			RunE: func(cmd *cobra.Command, args []string) error {
-				a.println(configFile())
+				a.Println(configFile())
 				return nil
 			},
 		},
@@ -310,7 +311,7 @@ func (a *App) configCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				a.printf("已写入 %s\n", saved)
+				a.Printf("已写入 %s\n", saved)
 				return nil
 			},
 		},
